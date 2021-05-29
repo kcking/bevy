@@ -140,6 +140,18 @@ pub mod winit {
     pub use bevy_winit::*;
 }
 
+#[cfg(feature = "bevy_xr")]
+pub mod xr {
+    //! Common interface for XR backends
+    pub use bevy_xr::*;
+}
+
+#[cfg(feature = "bevy_openxr")]
+pub mod openxr {
+    //! OpenXR backend
+    pub use bevy_openxr::*;
+}
+
 #[cfg(feature = "bevy_dynamic_plugin")]
 pub mod dynamic_plugin {
     //! Dynamic linking of plugins

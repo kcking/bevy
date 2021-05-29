@@ -18,6 +18,8 @@ use bevy_app::{PluginGroup, PluginGroupBuilder};
 /// * [`GilrsPlugin`](bevy_gilrs::GilrsPlugin) - with feature `bevy_gilrs`
 /// * [`GltfPlugin`](bevy_gltf::GltfPlugin) - with feature `bevy_gltf`
 /// * [`WinitPlugin`](bevy_winit::WinitPlugin) - with feature `bevy_winit`
+/// * [`XrPlugin`] - with feature `bevy_xr`
+/// * [`OpenXrPlugin`] - with feature `bevy_openxr`
 ///
 /// See also [`MinimalPlugins`] for a slimmed down option
 pub struct DefaultPlugins;
@@ -62,6 +64,12 @@ impl PluginGroup for DefaultPlugins {
 
         #[cfg(feature = "bevy_gilrs")]
         group.add(bevy_gilrs::GilrsPlugin::default());
+
+        #[cfg(feature = "bevy_xr")]
+        group.add(bevy_xr::XrPlugin::default());
+
+        #[cfg(feature = "bevy_openxr")]
+        group.add(bevy_openxr::OpenXrPlugin::default());
     }
 }
 
