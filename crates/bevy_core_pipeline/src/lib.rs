@@ -36,7 +36,7 @@ use bevy_render::{
 };
 
 /// Resource that configures the clear color
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Component)]
 pub struct ClearColor(pub Color);
 
 impl Default for ClearColor {
