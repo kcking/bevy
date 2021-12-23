@@ -38,7 +38,7 @@ use bevy_render::{
 };
 
 /// Resource that configures the clear color
-#[derive(Clone, Debug, Component)]
+#[derive(Clone, Debug)]
 pub struct ClearColor {
     pub default_color: Color,
     pub per_target: HashMap<RenderTarget, Color>,
