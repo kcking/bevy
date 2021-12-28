@@ -37,10 +37,12 @@ use bevy_render::{
     RenderApp, RenderStage, RenderWorld,
 };
 
-/// Resource that configures the clear color
+/// Resource that configures the clear color used for each RenderTarget
 #[derive(Clone, Debug)]
 pub struct ClearColor {
+    /// The color used for any target not specified in `per_target`
     pub default_color: Color,
+    /// Map of colors to clear each given `RenderTarget`.
     pub per_target: HashMap<RenderTarget, Color>,
 }
 
