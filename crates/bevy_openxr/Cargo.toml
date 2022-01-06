@@ -24,9 +24,9 @@ bevy_xr = { path = "../bevy_xr", version = "0.5.0" }
 # other
 openxr = { git = "https://github.com/Ralith/openxrs" }
 serde = "1"
-ash = "0.33"
-wgpu = "0.11"
-wgpu-hal = { version = "0.11", features = ["vulkan"] }
+ash = "0.34"
+wgpu = "0.12"
+wgpu-hal = { version = "0.12", features = ["vulkan"] }
 thiserror = "1.0"
 parking_lot = "0.11"
 

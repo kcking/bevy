@@ -30,7 +30,7 @@ pub fn create_graphics_context(
     let device_descriptor = wgpu::DeviceDescriptor::default();
 
     if instance.exts().khr_vulkan_enable2.is_some() {
-        let vk_entry = unsafe { ash::Entry::new().map_err(Box::new)? };
+        let vk_entry = unsafe { ash::Entry::new() };
 
         // Vulkan 1.0 constrained by Oculus Go support.
         // todo: multiview support will require Vulkan 1.1 or specific extensions
@@ -52,10 +52,9 @@ pub fn create_graphics_context(
             flags |= hal::InstanceFlags::DEBUG;
         }
 
-        let instance_extensions = <hal::api::Vulkan as hal::Api>::Instance::required_extensions(
-            &vk_entry, vk_version, flags,
-        )
-        .map_err(Box::new)?;
+        let instance_extensions =
+            <hal::api::Vulkan as hal::Api>::Instance::required_extensions(&vk_entry, flags)
+                .map_err(Box::new)?;
         let instance_extensions_ptrs = instance_extensions
             .iter()
             .map(|x| x.as_ptr())
@@ -86,7 +85,8 @@ pub fn create_graphics_context(
                 vk_version,
                 instance_extensions,
                 flags,
-                Box::new(instance.clone()),
+                false, //TODO: is this correct?
+                Some(Box::new(instance.clone())),
             )
             .map_err(Box::new)?
         };
@@ -124,9 +124,17 @@ pub fn create_graphics_context(
             .map(|x| x.as_ptr())
             .collect::<Vec<_>>();
 
-        let mut physical_features = hal_exposed_adapter
-            .adapter
-            .physical_device_features(&device_extensions, device_descriptor.features);
+        //  TODO: how do we get limits from actual device?
+        let uab_types = hal::UpdateAfterBindTypes::from_limits(
+            &device_descriptor.limits,
+            &vk::PhysicalDeviceLimits::default(),
+        );
+
+        let mut physical_features = hal_exposed_adapter.adapter.physical_device_features(
+            &device_extensions,
+            device_descriptor.features,
+            uab_types,
+        );
 
         let family_info = vk::DeviceQueueCreateInfo::builder()
             .queue_family_index(queue_family_index)
@@ -159,7 +167,10 @@ pub fn create_graphics_context(
                 .adapter
                 .device_from_raw(
                     vk_device.clone(),
+                    true, //    TODO: is this right?
                     &device_extensions,
+                    device_descriptor.features,
+                    uab_types,
                     queue_family_index,
                     queue_index,
                 )
