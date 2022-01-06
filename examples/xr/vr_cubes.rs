@@ -8,7 +8,7 @@ use bevy::{
         XrReferenceSpaceType, XrSessionMode, XrSystem, XrTrackingSource, XrVibrationEvent,
         XrVibrationEventType,
     },
-    DefaultPlugins, PipelinedDefaultPlugins,
+    DefaultPlugins,
 };
 
 #[bevy_main]
@@ -16,7 +16,7 @@ fn main() {
     App::new()
         .add_plugin(XrPlugin)
         .add_plugin(OpenXrPlugin)
-        .add_plugins(PipelinedDefaultPlugins)
+        .add_plugins(DefaultPlugins)
         .add_startup_system(startup)
         .add_system(interaction)
         .run();
@@ -42,7 +42,7 @@ fn startup(mut xr_system: ResMut<XrSystem>, mut app_exit_events: EventWriter<App
         name: "left_squeeze".into(),
         action_type: XrActionType::Scalar,
     };
-    let right_button = XrActionDescriptor {
+    let right_squeeze = XrActionDescriptor {
         name: "right_squeeze".into(),
         action_type: XrActionType::Scalar,
     };
@@ -88,7 +88,7 @@ fn interaction(
             "right_squeeze".to_owned(),
         ),
     ] {
-        if action_set.button_just_pressed(button) {
+        if action_set.button_just_pressed(&button) {
             // Short haptic click
             vibration_events.send(XrVibrationEvent {
                 hand,
@@ -99,7 +99,7 @@ fn interaction(
                 },
             });
         } else {
-            let squeeze_value = action_set.scalar_value(squeeze);
+            let squeeze_value = action_set.scalar_value(&squeeze);
             if squeeze_value > 0.0 {
                 // Low frequency rumble
                 vibration_events.send(XrVibrationEvent {
