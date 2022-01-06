@@ -177,13 +177,13 @@ pub fn create_graphics_context(
                 .map_err(Box::new)?
         };
 
-        // let wgpu_instance = unsafe { wgpu::Instance::from_hal::<hal::api::Vulkan>(hal_instance) };
-        // let wgpu_adapter = unsafe { wgpu_instance.adapter_from_hal(hal_exposed_adapter) };
-        // let (wgpu_device, wgpu_queue) = unsafe {
-        //     wgpu_adapter
-        //         .device_from_hal(hal_device, &device_descriptor, None)
-        //         .map_err(Box::new)?
-        // };
+        let wgpu_instance = unsafe { wgpu::Instance::from_hal::<hal::api::Vulkan>(hal_instance) };
+        let wgpu_adapter = unsafe { wgpu_instance.create_adapter_from_hal(hal_exposed_adapter) };
+        let (wgpu_device, wgpu_queue) = unsafe {
+            wgpu_adapter
+                .create_device_from_hal(hal_device, &device_descriptor, None)
+                .map_err(Box::new)?
+        };
 
         Ok((
             GraphicsContextHandles::Vulkan {
@@ -193,12 +193,11 @@ pub fn create_graphics_context(
                 queue_family_index,
                 queue_index,
             },
-            todo!(),
-            // XrGraphicsContext {
-            //     instance: wgpu_instance,
-            //     device: Arc::new(wgpu_device),
-            //     queue: wgpu_queue,
-            // },
+            XrGraphicsContext {
+                instance: wgpu_instance,
+                device: Arc::new(wgpu_device),
+                queue: wgpu_queue,
+            },
         ))
     } else {
         #[cfg(windows)]
