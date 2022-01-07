@@ -13,6 +13,7 @@ use bevy::{
 
 #[bevy_main]
 fn main() {
+    std::env::set_var("RUST_BACKTRACE", "1");
     App::new()
         .add_plugin(XrPlugin)
         .add_plugin(OpenXrPlugin)
