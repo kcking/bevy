@@ -543,7 +543,9 @@ apk_label = "Bevy Example"
 assets = "assets"
 res = "assets/android-res"
 icon = "@mipmap/ic_launcher"
-build_targets = ["aarch64-linux-android", "armv7-linux-androideabi"]
+build_targets = ["aarch64-linux-android",
+ #"armv7-linux-androideabi",
+]
 runtime_libs = "libs"
 
 [package.metadata.android.sdk]
