@@ -407,9 +407,13 @@ fn runner(mut app: App) {
         .insert_resource(XrTrackingSource::new(Box::new(tracking_source)));
 
     // todo: use these views limits and recommendations
-    let views = ctx
+    let _views = ctx
         .instance
         .enumerate_view_configuration_views(ctx.system, view_type)
+        .unwrap();
+
+    let stage = session
+        .create_reference_space(xr::ReferenceSpaceType::STAGE, xr::Posef::IDENTITY)
         .unwrap();
 
     let mut vibration_event_reader = ManualEventReader::default();
@@ -567,26 +571,26 @@ fn runner(mut app: App) {
                     frame_state.predicted_display_time,
                     blend_mode,
                     &[
-                        // &xr::CompositionLayerProjection::new().space(&stage).views(&[
-                        //     xr::CompositionLayerProjectionView::new()
-                        //         .pose(views[0].pose)
-                        //         .fov(views[0].fov)
-                        //         .sub_image(
-                        //             xr::SwapchainSubImage::new()
-                        //                 .swapchain(&swapchain.handle)
-                        //                 .image_array_index(0)
-                        //                 .image_rect(rect),
-                        //         ),
-                        //     xr::CompositionLayerProjectionView::new()
-                        //         .pose(views[1].pose)
-                        //         .fov(views[1].fov)
-                        //         .sub_image(
-                        //             xr::SwapchainSubImage::new()
-                        //                 .swapchain(&swapchain.handle)
-                        //                 .image_array_index(1)
-                        //                 .image_rect(rect),
-                        //         ),
-                        // ]),
+                        &xr::CompositionLayerProjection::new().space(&stage).views(&[
+                            xr::CompositionLayerProjectionView::new()
+                                .pose(views[0].pose)
+                                .fov(views[0].fov)
+                                .sub_image(
+                                    xr::SwapchainSubImage::new()
+                                        .swapchain(&swapchain.handle)
+                                        .image_array_index(0)
+                                        .image_rect(rect),
+                                ),
+                            xr::CompositionLayerProjectionView::new()
+                                .pose(views[1].pose)
+                                .fov(views[1].fov)
+                                .sub_image(
+                                    xr::SwapchainSubImage::new()
+                                        .swapchain(&swapchain.handle)
+                                        .image_array_index(1)
+                                        .image_rect(rect),
+                                ),
+                        ]),
                     ],
                 )
                 .unwrap(),
