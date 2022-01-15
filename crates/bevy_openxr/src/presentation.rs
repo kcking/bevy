@@ -3,8 +3,6 @@ use bevy_xr::presentation::XrGraphicsContext;
 use openxr as xr;
 use std::{error::Error, ffi::CString, sync::Arc};
 use wgpu_hal as hal;
-#[cfg(windows)]
-use winapi::um::d3d11::ID3D11Device;
 
 #[derive(Clone)]
 pub enum GraphicsContextHandles {
@@ -15,8 +13,6 @@ pub enum GraphicsContextHandles {
         queue_family_index: u32,
         queue_index: u32,
     },
-    #[cfg(windows)]
-    D3D11 { device: *const ID3D11Device },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -200,11 +196,6 @@ pub fn create_graphics_context(
             },
         ))
     } else {
-        #[cfg(windows)]
-        if instance.exts().khr_d3d11_enable {
-            todo!()
-        }
-
         Err(Box::new(xr::sys::Result::ERROR_EXTENSION_NOT_PRESENT))
     }
 }
