@@ -45,14 +45,8 @@ pub fn predict_pose(
         return None;
     }
 
-    let linear_velocity = velocity
-        .velocity_flags
-        .contains(xr::SpaceVelocityFlags::LINEAR_VALID)
-        .then(|| to_vec3(velocity.linear_velocity));
-    let angular_velocity = velocity
-        .velocity_flags
-        .contains(xr::SpaceVelocityFlags::ANGULAR_VALID)
-        .then(|| to_vec3(velocity.angular_velocity));
+    let linear_velocity = velocity.linear_velocity.map(to_vec3);
+    let angular_velocity = velocity.angular_velocity.map(to_vec3);
 
     Some(XrPose {
         transform: openxr_pose_to_corrected_rigid_transform(
