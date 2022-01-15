@@ -15,12 +15,15 @@ use bevy::{
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
     App::new()
-        .add_plugin(XrPlugin)
-        .add_plugin(OpenXrPlugin)
         .add_plugins(DefaultPlugins)
         .add_startup_system(startup)
-        .add_system(interaction)
+        // .add_system(interaction)
+        .add_system(dummy)
         .run();
+}
+
+fn dummy() {
+    dbg!();
 }
 
 fn startup(mut xr_system: ResMut<XrSystem>, mut app_exit_events: EventWriter<AppExit>) {
@@ -65,7 +68,7 @@ fn startup(mut xr_system: ResMut<XrSystem>, mut app_exit_events: EventWriter<App
         has_haptics: true,
     };
 
-    xr_system.set_action_set(vec![oculus_profile]);
+    // xr_system.set_action_set(vec![oculus_profile]);
 }
 
 fn interaction(

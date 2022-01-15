@@ -196,9 +196,12 @@ fn get_system_info(
         }
     };
 
-    let blend_modes = instance
-        .enumerate_environment_blend_modes(system, view_type)
-        .unwrap();
+    dbg!(&view_type, &mode, &system);
+
+    let blend_modes = match instance.enumerate_environment_blend_modes(system, view_type) {
+        Ok(blend_modes) => blend_modes,
+        _ => return None,
+    };
 
     let blend_mode = match mode {
         XrSessionMode::ImmersiveVR | XrSessionMode::InlineVR => blend_modes
@@ -250,6 +253,7 @@ impl Plugin for OpenXrPlugin {
 
         let mut context = app.world.get_resource_mut::<OpenXrContext>().unwrap();
         let graphics_context = context.graphics_context.take().unwrap();
+        println!("got graphics context");
 
         app.insert_resource::<XrGraphicsContext>(graphics_context)
             .set_runner(runner);
@@ -312,7 +316,7 @@ fn runner(mut app: App) {
     // Remove XrSystem. The user cannot make any more changes to the session mode.
     // todo: when the lifecycle API is implemented, allow the user to change the session mode at any
     // moment.
-    app.world.remove_resource::<XrSystem>();
+    // app.world.remove_resource::<XrSystem>();
 
     let (view_type, blend_mode) = get_system_info(&ctx.instance, ctx.system, mode).unwrap();
 
@@ -526,11 +530,11 @@ fn runner(mut app: App) {
 
         {
             let world_cell = app.world.cell();
-            handle_input(
-                &interaction_context,
-                &session,
-                &mut world_cell.get_resource_mut::<XrActionSet>().unwrap(),
-            );
+            // handle_input(
+            //     &interaction_context,
+            //     &session,
+            //     &mut world_cell.get_resource_mut::<XrActionSet>().unwrap(),
+            // );
         }
 
         match &mut frame_stream {
@@ -541,15 +545,15 @@ fn runner(mut app: App) {
 
         app.update();
 
-        // match &mut frame_stream {
-        //     FrameStream::Vulkan(frame_stream) => frame_stream
-        //         .end(frame_state.predicted_display_time, blend_mode, todo!())
-        //         .unwrap(),
-        //     #[cfg(windows)]
-        //     FrameStream::D3D11(frame_stream) => frame_stream
-        //         .end(frame_state.predicted_display_time, blend_mode, todo!())
-        //         .unwrap(),
-        // }
+        match &mut frame_stream {
+            FrameStream::Vulkan(frame_stream) => frame_stream
+                .end(frame_state.predicted_display_time, blend_mode, todo!())
+                .unwrap(),
+            #[cfg(windows)]
+            FrameStream::D3D11(frame_stream) => frame_stream
+                .end(frame_state.predicted_display_time, blend_mode, todo!())
+                .unwrap(),
+        }
 
         handle_output(
             &interaction_context,
