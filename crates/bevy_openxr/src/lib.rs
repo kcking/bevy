@@ -61,6 +61,7 @@ impl Drop for OpenXrSession {
 
 #[derive(Debug)]
 pub enum OpenXrError {
+    #[cfg(target_os = "android")]
     Loader(xr::LoadError),
     InstanceCreation(sys::Result),
     UnsupportedFormFactor,
@@ -132,7 +133,10 @@ pub struct OpenXrContext {
 
 impl OpenXrContext {
     fn new(form_factor: OpenXrFormFactor) -> Result<Self, OpenXrError> {
+        #[cfg(target_os = "android")]
         let entry = xr::Entry::load().map_err(OpenXrError::Loader)?;
+        #[cfg(not(target_os = "android"))]
+        let entry = xr::Entry::linked();
 
         #[cfg(target_os = "android")]
         entry.initialize_android_loader();
@@ -240,6 +244,14 @@ impl Plugin for OpenXrPlugin {
                             "OpenXR: No available form factors. Consider manually handling {}",
                             "the creation of the OpenXrContext resource."
                         ),
+                        Err(OpenXrError::InstanceCreation(sys::Result::ERROR_RUNTIME_FAILURE)) => {
+                            panic!(
+                                "OpenXR: Failed to create OpenXrContext: {:?}\n{} {}",
+                                sys::Result::ERROR_RUNTIME_FAILURE,
+                                "Is your headset connected? Also, consider manually handling",
+                                "the creation of the OpenXrContext resource."
+                            )
+                        }
                         Err(e) => panic!(
                             "OpenXR: Failed to create OpenXrContext: {:?}\n{} {}",
                             e,
