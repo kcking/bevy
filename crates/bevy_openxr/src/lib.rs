@@ -354,24 +354,6 @@ fn runner(mut app: App) {
                 FrameStream::Vulkan(frame_stream),
             )
         }
-        #[cfg(windows)]
-        GraphicsContextHandles::D3D11 { device } => {
-            let (session, frame_waiter, frame_stream) = self
-                .instance
-                .create_session(
-                    self.system_id,
-                    &xr::d3d::SessionCreateInfo {
-                        device: device as _,
-                    },
-                )
-                .unwrap();
-            (
-                backend.clone().into_any_graphics(),
-                SessionBackend::D3D11(session),
-                frame_waiter,
-                FrameStream::D3D11(frame_stream),
-            )
-        }
     };
 
     let session = OpenXrSession {
