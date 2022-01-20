@@ -203,8 +203,6 @@ fn get_system_info(
         }
     };
 
-    dbg!(&view_type, &mode, &system);
-
     let blend_modes = match instance.enumerate_environment_blend_modes(system, view_type) {
         Ok(blend_modes) => blend_modes,
         _ => return None,
@@ -608,7 +606,6 @@ fn runner(mut app: App) {
             width: view_cfgs[0].recommended_image_rect_width,
             height: view_cfgs[0].recommended_image_rect_height,
         };
-        dbg!(&view_cfgs, resolution);
         let swapchain = swapchain.get_or_insert_with(|| {
             create_swapchain(
                 &vk_session,
@@ -622,7 +619,7 @@ fn runner(mut app: App) {
             .unwrap()
         });
 
-        swapchain.handle.acquire_image().unwrap();
+        let image_index = swapchain.handle.acquire_image().unwrap();
         swapchain.handle.wait_image(xr::Duration::INFINITE).unwrap();
 
         let rect = xr::Rect2Di {
@@ -701,7 +698,6 @@ pub(crate) fn create_swapchain(
     queue_index: u32,
     view_count: u32,
 ) -> Result<Swapchain, OpenXrError> {
-    dbg!(array_size, view_count);
     let swapchain = xr_session
         .create_swapchain(&xr::SwapchainCreateInfo {
             create_flags: xr::SwapchainCreateFlags::EMPTY,
@@ -757,7 +753,6 @@ pub(crate) fn create_swapchain(
             Framebuffer { framebuffer, color }
         })
         .collect();
-    dbg!(buffers.len());
     Ok(Swapchain {
         resolution: *resolution,
         handle: swapchain,
