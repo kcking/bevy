@@ -23,7 +23,6 @@ fn main() {
 }
 
 fn dummy() {
-    dbg!();
 }
 
 fn startup(mut xr_system: ResMut<XrSystem>, mut app_exit_events: EventWriter<AppExit>) {
