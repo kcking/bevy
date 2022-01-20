@@ -18,6 +18,7 @@ use parking_lot::RwLock;
 use presentation::GraphicsContextHandles;
 use serde::{Deserialize, Serialize};
 use std::{error::Error, ops::Deref, sync::Arc, thread, time::Duration};
+use xr::CompositionLayerBase;
 
 // The form-factor is selected at plugin-creation-time and cannot be changed anymore for the entire
 // lifetime of the app. This will restrict which XrSessionMode can be selected.
@@ -342,38 +343,57 @@ fn runner(mut app: App) {
     };
     app.world.insert_resource(environment_blend_mode);
 
-    let (vk_session, session, graphics_session, mut frame_waiter, mut frame_stream) =
-        match ctx.graphics_handles {
-            GraphicsContextHandles::Vulkan {
-                instance,
-                physical_device,
-                device,
+    let vk_device = match &ctx.graphics_handles {
+        GraphicsContextHandles::Vulkan {
+            instance,
+            physical_device,
+            device,
+            queue_family_index,
+            queue_index,
+        } => device.clone(),
+    };
+
+    let (
+        queue_family_index,
+        queue_index,
+        vk_session,
+        session,
+        graphics_session,
+        mut frame_waiter,
+        mut frame_stream,
+    ) = match ctx.graphics_handles {
+        GraphicsContextHandles::Vulkan {
+            instance,
+            physical_device,
+            device,
+            queue_family_index,
+            queue_index,
+        } => {
+            let (session, frame_waiter, frame_stream) = unsafe {
+                ctx.instance
+                    .create_session(
+                        ctx.system,
+                        &xr::vulkan::SessionCreateInfo {
+                            instance: instance.handle().as_raw() as *const _,
+                            physical_device: physical_device.as_raw() as *const _,
+                            device: device.handle().as_raw() as *const _,
+                            queue_family_index,
+                            queue_index,
+                        },
+                    )
+                    .unwrap()
+            };
+            (
                 queue_family_index,
                 queue_index,
-            } => {
-                let (session, frame_waiter, frame_stream) = unsafe {
-                    ctx.instance
-                        .create_session(
-                            ctx.system,
-                            &xr::vulkan::SessionCreateInfo {
-                                instance: instance.handle().as_raw() as *const _,
-                                physical_device: physical_device.as_raw() as *const _,
-                                device: device.handle().as_raw() as *const _,
-                                queue_family_index,
-                                queue_index,
-                            },
-                        )
-                        .unwrap()
-                };
-                (
-                    session.clone(),
-                    session.clone().into_any_graphics(),
-                    SessionBackend::Vulkan(session),
-                    frame_waiter,
-                    FrameStream::Vulkan(frame_stream),
-                )
-            }
-        };
+                session.clone(),
+                session.clone().into_any_graphics(),
+                SessionBackend::Vulkan(session),
+                frame_waiter,
+                FrameStream::Vulkan(frame_stream),
+            )
+        }
+    };
 
     let session = OpenXrSession {
         inner: Some(session),
@@ -546,8 +566,20 @@ fn runner(mut app: App) {
 
         let frame_state = frame_waiter.wait().unwrap();
 
+        match &mut frame_stream {
+            FrameStream::Vulkan(frame_stream) => frame_stream.begin().unwrap(),
+            #[cfg(windows)]
+            FrameStream::D3D11(frame_stream) => frame_stream.begin().unwrap(),
+        }
+
         if !frame_state.should_render {
-            thread::sleep(Duration::from_millis(200));
+            match &mut frame_stream {
+                FrameStream::Vulkan(frame_stream) => frame_stream
+                    .end(frame_state.predicted_display_time, blend_mode, &[])
+                    .unwrap(),
+                #[cfg(windows)]
+                FrameStream::D3D11(_) => todo!(),
+            }
             continue;
         }
 
@@ -560,12 +592,6 @@ fn runner(mut app: App) {
             //     &session,
             //     &mut world_cell.get_resource_mut::<XrActionSet>().unwrap(),
             // );
-        }
-
-        match &mut frame_stream {
-            FrameStream::Vulkan(frame_stream) => frame_stream.begin().unwrap(),
-            #[cfg(windows)]
-            FrameStream::D3D11(frame_stream) => frame_stream.begin().unwrap(),
         }
 
         app.update();
@@ -582,9 +608,22 @@ fn runner(mut app: App) {
             width: view_cfgs[0].recommended_image_rect_width,
             height: view_cfgs[0].recommended_image_rect_height,
         };
+        dbg!(&view_cfgs, resolution);
         let swapchain = swapchain.get_or_insert_with(|| {
-            create_swapchain(&vk_session, &resolution, view_cfgs.len() as u32).unwrap()
+            create_swapchain(
+                &vk_session,
+                &vk_device,
+                &resolution,
+                view_cfgs.len() as u32,
+                queue_family_index,
+                queue_index,
+                views.len() as u32,
+            )
+            .unwrap()
         });
+
+        swapchain.handle.acquire_image().unwrap();
+        swapchain.handle.wait_image(xr::Duration::INFINITE).unwrap();
 
         let rect = xr::Rect2Di {
             offset: xr::Offset2Di { x: 0, y: 0 },
@@ -593,6 +632,8 @@ fn runner(mut app: App) {
                 height: resolution.height as _,
             },
         };
+
+        swapchain.handle.release_image().unwrap();
 
         match &mut frame_stream {
             FrameStream::Vulkan(frame_stream) => frame_stream
@@ -606,7 +647,7 @@ fn runner(mut app: App) {
                                 .fov(views[0].fov)
                                 .sub_image(
                                     xr::SwapchainSubImage::new()
-                                        .swapchain(swapchain)
+                                        .swapchain(&swapchain.handle)
                                         .image_array_index(0)
                                         .image_rect(rect),
                                 ),
@@ -615,7 +656,7 @@ fn runner(mut app: App) {
                                 .fov(views[1].fov)
                                 .sub_image(
                                     xr::SwapchainSubImage::new()
-                                        .swapchain(swapchain)
+                                        .swapchain(&swapchain.handle)
                                         .image_array_index(1)
                                         .image_rect(rect),
                                 ),
@@ -653,10 +694,15 @@ pub const COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
 
 pub(crate) fn create_swapchain(
     xr_session: &xr::Session<xr::Vulkan>,
+    vk_device: &ash::Device,
     resolution: &vk::Extent2D,
     array_size: u32,
-) -> Result<xr::Swapchain<xr::Vulkan>, OpenXrError> {
-    xr_session
+    queue_family_index: u32,
+    queue_index: u32,
+    view_count: u32,
+) -> Result<Swapchain, OpenXrError> {
+    dbg!(array_size, view_count);
+    let swapchain = xr_session
         .create_swapchain(&xr::SwapchainCreateInfo {
             create_flags: xr::SwapchainCreateFlags::EMPTY,
             usage_flags: xr::SwapchainUsageFlags::COLOR_ATTACHMENT,
@@ -668,5 +714,112 @@ pub(crate) fn create_swapchain(
             array_size,
             mip_count: 1,
         })
-        .map_err(OpenXrError::SwapchainCreation)
+        .map_err(OpenXrError::SwapchainCreation)?;
+
+    let render_pass =
+        unsafe { create_render_pass(&vk_device, queue_family_index, queue_index, view_count) };
+
+    let buffers: Vec<_> = swapchain
+        .enumerate_images()
+        .unwrap()
+        .into_iter()
+        .map(|color_image| {
+            let color_image = vk::Image::from_raw(color_image);
+            let color = unsafe {
+                vk_device.create_image_view(
+                    &vk::ImageViewCreateInfo::builder()
+                        .image(color_image)
+                        .view_type(vk::ImageViewType::TYPE_2D_ARRAY)
+                        .format(COLOR_FORMAT)
+                        .subresource_range(vk::ImageSubresourceRange {
+                            aspect_mask: vk::ImageAspectFlags::COLOR,
+                            base_mip_level: 0,
+                            level_count: 1,
+                            base_array_layer: 0,
+                            layer_count: 2,
+                        }),
+                    None,
+                )
+            }
+            .unwrap();
+            let framebuffer = unsafe {
+                vk_device.create_framebuffer(
+                    &vk::FramebufferCreateInfo::builder()
+                        .render_pass(render_pass)
+                        .width(resolution.width)
+                        .height(resolution.height)
+                        .attachments(&[color])
+                        .layers(1), // Multiview handles addressing multiple layers
+                    None,
+                )
+            }
+            .unwrap();
+            Framebuffer { framebuffer, color }
+        })
+        .collect();
+    dbg!(buffers.len());
+    Ok(Swapchain {
+        resolution: *resolution,
+        handle: swapchain,
+        buffers,
+    })
+}
+
+struct Swapchain {
+    handle: xr::Swapchain<xr::Vulkan>,
+    buffers: Vec<Framebuffer>,
+    resolution: vk::Extent2D,
+}
+
+struct Framebuffer {
+    framebuffer: vk::Framebuffer,
+    color: vk::ImageView,
+}
+
+unsafe fn create_render_pass(
+    vk_device: &ash::Device,
+    queue_family_index: u32,
+    queue_index: u32,
+    view_count: u32,
+) -> vk::RenderPass {
+    // let queue = vk_device.get_device_queue(queue_family_index, queue_index);
+
+    let view_mask = !(!0 << view_count);
+    let render_pass = vk_device
+        .create_render_pass(
+            &vk::RenderPassCreateInfo::builder()
+                .attachments(&[vk::AttachmentDescription {
+                    format: COLOR_FORMAT,
+                    samples: vk::SampleCountFlags::TYPE_1,
+                    load_op: vk::AttachmentLoadOp::CLEAR,
+                    store_op: vk::AttachmentStoreOp::STORE,
+                    initial_layout: vk::ImageLayout::UNDEFINED,
+                    final_layout: vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                    ..Default::default()
+                }])
+                .subpasses(&[vk::SubpassDescription::builder()
+                    .color_attachments(&[vk::AttachmentReference {
+                        attachment: 0,
+                        layout: vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                    }])
+                    .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
+                    .build()])
+                .dependencies(&[vk::SubpassDependency {
+                    src_subpass: vk::SUBPASS_EXTERNAL,
+                    dst_subpass: 0,
+                    src_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                    dst_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                    dst_access_mask: vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+                    ..Default::default()
+                }])
+                .push_next(
+                    &mut vk::RenderPassMultiviewCreateInfo::builder()
+                        .view_masks(&[view_mask])
+                        .correlation_masks(&[view_mask]),
+                ),
+            None,
+        )
+        .unwrap();
+
+    render_pass
 }
