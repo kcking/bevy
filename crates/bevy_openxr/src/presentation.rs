@@ -29,8 +29,8 @@ pub fn create_graphics_context(
         let vk_entry = unsafe { ash::Entry::new() };
 
         // Vulkan 1.0 constrained by Oculus Go support.
-        // todo: multiview support will require Vulkan 1.1 or specific extensions
-        let vk_version = vk::make_api_version(1, 0, 0, 0);
+        // NOTE: multiview support will require Vulkan 1.1 or specific extensions
+        let vk_version = vk::make_api_version(0, 1, 1, 0);
 
         // todo: check requirements
         let _requirements = instance
@@ -138,10 +138,15 @@ pub fn create_graphics_context(
             .build();
         let family_infos = [family_info];
 
+        let mut multiview = vk::PhysicalDeviceMultiviewFeatures {
+            multiview: vk::TRUE,
+            ..Default::default()
+        };
         let vk_device = {
             let info = vk::DeviceCreateInfo::builder()
                 .queue_create_infos(&family_infos)
-                .enabled_extension_names(&device_extensions_ptrs);
+                .enabled_extension_names(&device_extensions_ptrs)
+                .push_next(&mut multiview);
             let info = physical_features.add_to_device_create_builder(info).build();
 
             unsafe {

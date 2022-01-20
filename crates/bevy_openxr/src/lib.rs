@@ -2,6 +2,7 @@ mod conversion;
 mod interaction;
 mod presentation;
 
+use ash::vk;
 use ash::vk::Handle;
 pub use interaction::*;
 
@@ -67,6 +68,7 @@ pub enum OpenXrError {
     UnsupportedFormFactor,
     UnavailableFormFactor,
     GraphicsCreation(Box<dyn Error>),
+    SwapchainCreation(sys::Result),
 }
 
 fn selected_extensions(entry: &xr::Entry) -> xr::ExtensionSet {
@@ -340,37 +342,38 @@ fn runner(mut app: App) {
     };
     app.world.insert_resource(environment_blend_mode);
 
-    let (session, graphics_session, mut frame_waiter, mut frame_stream) = match ctx.graphics_handles
-    {
-        GraphicsContextHandles::Vulkan {
-            instance,
-            physical_device,
-            device,
-            queue_family_index,
-            queue_index,
-        } => {
-            let (session, frame_waiter, frame_stream) = unsafe {
-                ctx.instance
-                    .create_session(
-                        ctx.system,
-                        &xr::vulkan::SessionCreateInfo {
-                            instance: instance.handle().as_raw() as *const _,
-                            physical_device: physical_device.as_raw() as *const _,
-                            device: device.handle().as_raw() as *const _,
-                            queue_family_index,
-                            queue_index,
-                        },
-                    )
-                    .unwrap()
-            };
-            (
-                session.clone().into_any_graphics(),
-                SessionBackend::Vulkan(session),
-                frame_waiter,
-                FrameStream::Vulkan(frame_stream),
-            )
-        }
-    };
+    let (vk_session, session, graphics_session, mut frame_waiter, mut frame_stream) =
+        match ctx.graphics_handles {
+            GraphicsContextHandles::Vulkan {
+                instance,
+                physical_device,
+                device,
+                queue_family_index,
+                queue_index,
+            } => {
+                let (session, frame_waiter, frame_stream) = unsafe {
+                    ctx.instance
+                        .create_session(
+                            ctx.system,
+                            &xr::vulkan::SessionCreateInfo {
+                                instance: instance.handle().as_raw() as *const _,
+                                physical_device: physical_device.as_raw() as *const _,
+                                device: device.handle().as_raw() as *const _,
+                                queue_family_index,
+                                queue_index,
+                            },
+                        )
+                        .unwrap()
+                };
+                (
+                    session.clone(),
+                    session.clone().into_any_graphics(),
+                    SessionBackend::Vulkan(session),
+                    frame_waiter,
+                    FrameStream::Vulkan(frame_stream),
+                )
+            }
+        };
 
     let session = OpenXrSession {
         inner: Some(session),
@@ -420,6 +423,7 @@ fn runner(mut app: App) {
 
     let mut event_storage = xr::EventDataBuffer::new();
 
+    let mut swapchain = None;
     let mut running = false;
     'session_loop: loop {
         while let Some(event) = ctx.instance.poll_event(&mut event_storage).unwrap() {
@@ -542,6 +546,11 @@ fn runner(mut app: App) {
 
         let frame_state = frame_waiter.wait().unwrap();
 
+        if !frame_state.should_render {
+            thread::sleep(Duration::from_millis(200));
+            continue;
+        }
+
         *next_vsync_time.write() = frame_state.predicted_display_time;
 
         {
@@ -564,6 +573,26 @@ fn runner(mut app: App) {
         let (_, views) = session
             .locate_views(view_type, frame_state.predicted_display_time, &stage)
             .unwrap();
+        let view_cfgs = session
+            .instance()
+            .enumerate_view_configuration_views(ctx.system, view_type)
+            .unwrap();
+
+        let resolution = vk::Extent2D {
+            width: view_cfgs[0].recommended_image_rect_width,
+            height: view_cfgs[0].recommended_image_rect_height,
+        };
+        let swapchain = swapchain.get_or_insert_with(|| {
+            create_swapchain(&vk_session, &resolution, view_cfgs.len() as u32).unwrap()
+        });
+
+        let rect = xr::Rect2Di {
+            offset: xr::Offset2Di { x: 0, y: 0 },
+            extent: xr::Extent2Di {
+                width: resolution.width as _,
+                height: resolution.height as _,
+            },
+        };
 
         match &mut frame_stream {
             FrameStream::Vulkan(frame_stream) => frame_stream
@@ -577,7 +606,7 @@ fn runner(mut app: App) {
                                 .fov(views[0].fov)
                                 .sub_image(
                                     xr::SwapchainSubImage::new()
-                                        .swapchain(&swapchain.handle)
+                                        .swapchain(swapchain)
                                         .image_array_index(0)
                                         .image_rect(rect),
                                 ),
@@ -586,7 +615,7 @@ fn runner(mut app: App) {
                                 .fov(views[1].fov)
                                 .sub_image(
                                     xr::SwapchainSubImage::new()
-                                        .swapchain(&swapchain.handle)
+                                        .swapchain(swapchain)
                                         .image_array_index(1)
                                         .image_rect(rect),
                                 ),
@@ -618,4 +647,26 @@ fn runner(mut app: App) {
             session.request_exit().unwrap();
         }
     }
+}
+
+pub const COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
+
+pub(crate) fn create_swapchain(
+    xr_session: &xr::Session<xr::Vulkan>,
+    resolution: &vk::Extent2D,
+    array_size: u32,
+) -> Result<xr::Swapchain<xr::Vulkan>, OpenXrError> {
+    xr_session
+        .create_swapchain(&xr::SwapchainCreateInfo {
+            create_flags: xr::SwapchainCreateFlags::EMPTY,
+            usage_flags: xr::SwapchainUsageFlags::COLOR_ATTACHMENT,
+            format: COLOR_FORMAT.as_raw() as u32,
+            sample_count: 1,
+            width: resolution.width,
+            height: resolution.height,
+            face_count: 1,
+            array_size,
+            mip_count: 1,
+        })
+        .map_err(OpenXrError::SwapchainCreation)
 }
