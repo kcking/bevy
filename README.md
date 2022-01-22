@@ -1,10 +1,13 @@
 This is a work-in-progress branch of bevy to add openxr support. It is based mostly off of [zarik5's work](https://github.com/zarik5/bevy). The goal is to support both Oculus and PCVR.
 
+Run the example with `cargo run --example vr_cubes`
+
 This branch has 0.6 rebased in.
 
 [x] Get anything to render at all with vulkan
 [] Use wgpu instead of Vulkan abstractions
 [] Integrate with bevy render pipeline
+[] Add back in motion controller/input support (it was ripped out in an effort to get the example to not panic)
 [] Prevent window from opening (shows as Not Responding on Windows OS).
 [] Fix Android lifecycle integration
 
