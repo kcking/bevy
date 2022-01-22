@@ -1,3 +1,13 @@
+This is a work-in-progress branch of bevy to add openxr support. It is based mostly off of [zarik5's work](https://github.com/zarik5/bevy). The goal is to support both Oculus and PCVR.
+
+This branch has 0.6 rebased in.
+
+[x] Get anything to render at all with vulkan
+[] Use wgpu instead of Vulkan abstractions
+[] Integrate with bevy render pipeline
+[] Prevent window from opening (shows as Not Responding on Windows OS).
+[] Fix Android lifecycle integration
+
 # [![Bevy](assets/branding/bevy_logo_light_dark_and_dimmed.svg)](https://bevyengine.org)
 
 [![Crates.io](https://img.shields.io/crates/v/bevy.svg)](https://crates.io/crates/bevy)
@@ -17,33 +27,33 @@ Bevy is still in the _very_ early stages of development. APIs can and will chang
 
 ## Design Goals
 
-* **Capable**: Offer a complete 2D and 3D feature set
-* **Simple**: Easy for newbies to pick up, but infinitely flexible for power users
-* **Data Focused**: Data-oriented architecture using the Entity Component System paradigm
-* **Modular**: Use only what you need. Replace what you don't like
-* **Fast**: App logic should run quickly, and when possible, in parallel
-* **Productive**: Changes should compile quickly ... waiting isn't fun
+- **Capable**: Offer a complete 2D and 3D feature set
+- **Simple**: Easy for newbies to pick up, but infinitely flexible for power users
+- **Data Focused**: Data-oriented architecture using the Entity Component System paradigm
+- **Modular**: Use only what you need. Replace what you don't like
+- **Fast**: App logic should run quickly, and when possible, in parallel
+- **Productive**: Changes should compile quickly ... waiting isn't fun
 
 ## About
 
-* **[Features](https://bevyengine.org):** A quick overview of Bevy's features.
-* **[News](https://bevyengine.org/news/)**: A development blog that covers our progress, plans and shiny new features.
+- **[Features](https://bevyengine.org):** A quick overview of Bevy's features.
+- **[News](https://bevyengine.org/news/)**: A development blog that covers our progress, plans and shiny new features.
 
 ## Docs
 
-* **[The Bevy Book](https://bevyengine.org/learn/book/introduction):** Bevy's official documentation. The best place to start learning Bevy.
-* **[Bevy Rust API Docs](https://docs.rs/bevy):** Bevy's Rust API docs, which are automatically generated from the doc comments in this repo.
-* **[Official Examples](https://github.com/bevyengine/bevy/tree/latest/examples):** Bevy's dedicated, runnable examples, which are great for digging into specific concepts.
-* **[Community-Made Learning Resources](https://bevyengine.org/assets/#learning)**: More tutorials, documentation, and examples made by the Bevy community.
+- **[The Bevy Book](https://bevyengine.org/learn/book/introduction):** Bevy's official documentation. The best place to start learning Bevy.
+- **[Bevy Rust API Docs](https://docs.rs/bevy):** Bevy's Rust API docs, which are automatically generated from the doc comments in this repo.
+- **[Official Examples](https://github.com/bevyengine/bevy/tree/latest/examples):** Bevy's dedicated, runnable examples, which are great for digging into specific concepts.
+- **[Community-Made Learning Resources](https://bevyengine.org/assets/#learning)**: More tutorials, documentation, and examples made by the Bevy community.
 
 ## Community
 
-Before contributing or participating in discussions with the community, you should familiarize yourself with our **[Code of Conduct](./CODE_OF_CONDUCT.md).
+Before contributing or participating in discussions with the community, you should familiarize yourself with our \*\*[Code of Conduct](./CODE_OF_CONDUCT.md).
 
-* **[Discord](https://discord.gg/bevy):** Bevy's official discord server.
-* **[Reddit](https://reddit.com/r/bevy):** Bevy's official subreddit.
-* **[GitHub Discussions](https://github.com/bevyengine/bevy/discussions):** The best place for questions about Bevy, answered right here!
-* **[Bevy Assets](https://bevyengine.org/assets/):** A collection of awesome Bevy projects, tools, plugins and learning materials.
+- **[Discord](https://discord.gg/bevy):** Bevy's official discord server.
+- **[Reddit](https://reddit.com/r/bevy):** Bevy's official subreddit.
+- **[GitHub Discussions](https://github.com/bevyengine/bevy/discussions):** The best place for questions about Bevy, answered right here!
+- **[Bevy Assets](https://bevyengine.org/assets/):** A collection of awesome Bevy projects, tools, plugins and learning materials.
 
 If you'd like to help build Bevy, check out the **[Contributor's Guide](https://github.com/bevyengine/bevy/blob/main/CONTRIBUTING.md)**.
 For simple problems, feel free to open an issue or PR and tackle it yourself!
@@ -72,10 +82,10 @@ Bevy can be built just fine using default configuration on stable Rust. However 
 
 Bevy is only possible because of the hard work put into these foundational technologies:
 
-* [wgpu](https://wgpu.rs/): modern / low-level / cross-platform graphics library inspired by Vulkan
-* [glam-rs](https://github.com/bitshifter/glam-rs): a simple and fast 3D math library for games and graphics
-* [winit](https://github.com/rust-windowing/winit): cross-platform window creation and management in Rust
-* [spirv-reflect](https://github.com/gwihlidal/spirv-reflect-rs): Reflection API in rust for SPIR-V shader byte code
+- [wgpu](https://wgpu.rs/): modern / low-level / cross-platform graphics library inspired by Vulkan
+- [glam-rs](https://github.com/bitshifter/glam-rs): a simple and fast 3D math library for games and graphics
+- [winit](https://github.com/rust-windowing/winit): cross-platform window creation and management in Rust
+- [spirv-reflect](https://github.com/gwihlidal/spirv-reflect-rs): Reflection API in rust for SPIR-V shader byte code
 
 ## [Bevy Cargo Features][cargo_features]
 
@@ -97,8 +107,8 @@ Additionally, we would like to thank the [Amethyst](https://github.com/amethyst/
 
 Bevy is free and open source! All code in this repository is dual-licensed under either:
 
-* MIT License ([LICENSE-MIT](docs/LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
-* Apache License, Version 2.0 ([LICENSE-APACHE](docs/LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
+- MIT License ([LICENSE-MIT](docs/LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
+- Apache License, Version 2.0 ([LICENSE-APACHE](docs/LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
 
 at your option. This means you can select the license you prefer! This dual-licensing approach is the de-facto standard in the Rust ecosystem and there are [very good reasons](https://github.com/bevyengine/bevy/issues/2373) to include both.
 
