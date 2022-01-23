@@ -669,6 +669,8 @@ fn runner(mut app: App) {
         let image_index = swapchain.handle.acquire_image().unwrap();
         swapchain.handle.wait_image(xr::Duration::INFINITE).unwrap();
 
+        let tex = swapchain.buffers[image_index as usize].color;
+
         unsafe {
             vk_device
                 .wait_for_fences(&[fences[frame % PIPELINE_DEPTH]], true, u64::MAX)
