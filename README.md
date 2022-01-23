@@ -6,9 +6,16 @@ This branch has 0.6 rebased in.
 
 [x] Get anything to render at all with vulkan
 [] Use wgpu instead of Vulkan abstractions
+
     - vk::ImageView -> wgpu::TextureView
     - vk::Image -> wgpu::Texture
+
 [] Integrate with bevy render pipeline
+
+    - using multiview would likely require modifying bevy shaders
+    - instead we could add 2 cameras and have bevy render both
+    - let's try adding in render-to-texture with 2 cameras (will maybe be just like the multi-window example)
+
 [] Add back in motion controller/input support (it was ripped out in an effort to get the example to not panic)
 [] Prevent window from opening (shows as Not Responding on Windows OS).
 [] Fix Android lifecycle integration
