@@ -14,7 +14,13 @@ This branch has 0.6 rebased in.
 
     - using multiview would likely require modifying bevy shaders
     - instead we could add 2 cameras and have bevy render both
-    - let's try adding in render-to-texture with 2 cameras (will maybe be just like the multi-window example)
+    - let's try adding in render-to-texture with 2 cameras
+
+        - i dont think RenderTarget::Image will work; we need to init a wgpu::Texture from the vulkan image from the openxr swapchain
+        -  create_texture_from_hal?, or instead create TextureView from ImageView, or maybe a swapchain -> wgpu::surface
+
+    - use swapchain per view, as in [hello_xr](https://github.com/KhronosGroup/OpenXR-SDK-Source/blob/master/src/tests/hello_xr/openxr_program.cpp#L661)
+    - set Camera perspective and transform based on views returned by openxr
 
     - maybe instead add a new type of camera to https://github.com/kcking/bevy/blob/0add6f4258f0e47a112ae63fbd2317e56b444e98/crates/bevy_core_pipeline/src/lib.rs#L371 ?
 
