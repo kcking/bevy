@@ -5,6 +5,8 @@ mod presentation;
 use ash::util::read_spv;
 use ash::vk::{self, Pipeline, RenderPass};
 use ash::vk::{Handle, PipelineLayout};
+use bevy_ecs::prelude::Component;
+use bevy_render::camera::{Camera, PerspectiveCameraBundle};
 pub use interaction::*;
 
 use bevy_app::{App, AppExit, CoreStage, Events, ManualEventReader, Plugin};
@@ -483,6 +485,24 @@ fn runner(mut app: App) {
         unsafe { create_render_pass(&vk_device, queue_family_index, queue_index, view_count) };
     let queue = unsafe { vk_device.get_device_queue(queue_family_index, 0) };
 
+    #[derive(Component)]
+    enum Eye {
+        Left,
+        Right,
+    }
+    let left_camera = app
+        .world
+        .spawn()
+        .insert_bundle(PerspectiveCameraBundle::default())
+        .insert(Eye::Left)
+        .id();
+    let right_camera = app
+        .world
+        .spawn()
+        .insert_bundle(PerspectiveCameraBundle::default())
+        .insert(Eye::Right)
+        .id();
+
     let (pipeline_layout, pipeline) = unsafe { create_pipeline(&vk_device, render_pass) };
 
     let mut frame: usize = 0;
@@ -678,63 +698,6 @@ fn runner(mut app: App) {
             vk_device
                 .reset_fences(&[fences[frame % PIPELINE_DEPTH]])
                 .unwrap();
-
-            let cmd = cmds[frame % PIPELINE_DEPTH];
-            vk_device
-                .begin_command_buffer(
-                    cmd,
-                    &vk::CommandBufferBeginInfo::builder()
-                        .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
-                )
-                .unwrap();
-            vk_device.cmd_begin_render_pass(
-                cmd,
-                &vk::RenderPassBeginInfo::builder()
-                    .render_pass(render_pass)
-                    .framebuffer(swapchain.buffers[image_index as usize].framebuffer)
-                    .render_area(vk::Rect2D {
-                        offset: vk::Offset2D::default(),
-                        extent: swapchain.resolution,
-                    })
-                    .clear_values(&[vk::ClearValue {
-                        color: vk::ClearColorValue {
-                            float32: [0.0, 0.0, 0.0, 1.0],
-                        },
-                    }]),
-                vk::SubpassContents::INLINE,
-            );
-
-            let viewports = [vk::Viewport {
-                x: 0.0,
-                y: 0.0,
-                width: swapchain.resolution.width as f32,
-                height: swapchain.resolution.height as f32,
-                min_depth: 0.0,
-                max_depth: 1.0,
-            }];
-            let scissors = [vk::Rect2D {
-                offset: vk::Offset2D { x: 0, y: 0 },
-                extent: swapchain.resolution,
-            }];
-            vk_device.cmd_set_viewport(cmd, 0, &viewports);
-            vk_device.cmd_set_scissor(cmd, 0, &scissors);
-
-            // Draw the scene. Multiview means we only need to do this once, and the GPU will
-            // automatically broadcast operations to all views. Shaders can use `gl_ViewIndex` to
-            // e.g. select the correct view matrix.
-            vk_device.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, pipeline);
-            vk_device.cmd_draw(cmd, 3, 1, 0, 0);
-
-            vk_device.cmd_end_render_pass(cmd);
-            vk_device.end_command_buffer(cmd).unwrap();
-
-            vk_device
-                .queue_submit(
-                    queue,
-                    &[vk::SubmitInfo::builder().command_buffers(&[cmd]).build()],
-                    fences[frame % PIPELINE_DEPTH],
-                )
-                .unwrap();
         }
         let rect = xr::Rect2Di {
             offset: xr::Offset2Di { x: 0, y: 0 },
@@ -846,7 +809,7 @@ pub(crate) fn create_swapchain(
                             base_mip_level: 0,
                             level_count: 1,
                             base_array_layer: 0,
-                            layer_count: 2,
+                            layer_count: 1,
                         }),
                     None,
                 )
@@ -859,7 +822,7 @@ pub(crate) fn create_swapchain(
                         .width(resolution.width)
                         .height(resolution.height)
                         .attachments(&[color])
-                        .layers(1), // Multiview handles addressing multiple layers
+                        .layers(1),
                     None,
                 )
             }
@@ -1037,3 +1000,5 @@ unsafe fn create_pipeline(
 
     (pipeline_layout, pipeline)
 }
+
+struct XrCameraBundle {}
