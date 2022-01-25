@@ -18,6 +18,7 @@ This branch has 0.6 rebased in.
 
         - i dont think RenderTarget::Image will work; we need to init a wgpu::Texture from the vulkan image from the openxr swapchain
         -  create_texture_from_hal?, or instead create TextureView from ImageView, or maybe a swapchain -> wgpu::surface
+        - could also render to 2 images then copy them to openxr textures
 
     - use swapchain per view, as in [hello_xr](https://github.com/KhronosGroup/OpenXR-SDK-Source/blob/master/src/tests/hello_xr/openxr_program.cpp#L661)
     - set Camera perspective and transform based on views returned by openxr
