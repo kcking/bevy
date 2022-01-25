@@ -16,6 +16,10 @@ This branch has 0.6 rebased in.
     - instead we could add 2 cameras and have bevy render both
     - let's try adding in render-to-texture with 2 cameras (will maybe be just like the multi-window example)
 
+    - maybe instead add a new type of camera to https://github.com/kcking/bevy/blob/0add6f4258f0e47a112ae63fbd2317e56b444e98/crates/bevy_core_pipeline/src/lib.rs#L371 ?
+
+    - modify Image struct to handle a raw textureview
+
 [] Add back in motion controller/input support (it was ripped out in an effort to get the example to not panic)
 [] Prevent window from opening (shows as Not Responding on Windows OS).
 [] Fix Android lifecycle integration

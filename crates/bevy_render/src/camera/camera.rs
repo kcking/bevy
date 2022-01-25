@@ -13,9 +13,9 @@ use bevy_ecs::{
     system::{QuerySet, Res},
 };
 use bevy_math::{Mat4, UVec2, Vec2, Vec3};
-use bevy_reflect::{Reflect, ReflectDeserialize};
+use bevy_reflect::{Reflect, ReflectDeserialize, Uuid};
 use bevy_transform::components::GlobalTransform;
-use bevy_utils::HashSet;
+use bevy_utils::{HashMap, HashSet};
 use bevy_window::{WindowCreated, WindowId, WindowResized, Windows};
 use serde::{Deserialize, Serialize};
 use wgpu::Extent3d;
@@ -39,6 +39,8 @@ pub enum RenderTarget {
     Window(WindowId),
     /// Image to which the camera's view is rendered.
     Image(Handle<Image>),
+
+    TextureView(Uuid),
 }
 
 impl Default for RenderTarget {
@@ -47,11 +49,13 @@ impl Default for RenderTarget {
     }
 }
 
+type ManualTextureViews = HashMap<Uuid, (TextureView, UVec2)>;
 impl RenderTarget {
     pub fn get_texture_view<'a>(
         &self,
         windows: &'a ExtractedWindows,
         images: &'a RenderAssets<Image>,
+        manual_texture_views: &'a ManualTextureViews,
     ) -> Option<&'a TextureView> {
         match self {
             RenderTarget::Window(window_id) => windows
@@ -60,9 +64,15 @@ impl RenderTarget {
             RenderTarget::Image(image_handle) => {
                 images.get(image_handle).map(|image| &image.texture_view)
             }
+            RenderTarget::TextureView(id) => manual_texture_views.get(id).map(|(tex, _)| tex),
         }
     }
-    pub fn get_physical_size(&self, windows: &Windows, images: &Assets<Image>) -> Option<UVec2> {
+    pub fn get_physical_size(
+        &self,
+        windows: &Windows,
+        images: &Assets<Image>,
+        manual_texture_views: &ManualTextureViews,
+    ) -> Option<UVec2> {
         match self {
             RenderTarget::Window(window_id) => windows
                 .get(*window_id)
@@ -71,9 +81,15 @@ impl RenderTarget {
                 let Extent3d { width, height, .. } = image.texture_descriptor.size;
                 UVec2::new(width, height)
             }),
+            RenderTarget::TextureView(id) => manual_texture_views.get(id).map(|(_, size)| *size),
         }
     }
-    pub fn get_logical_size(&self, windows: &Windows, images: &Assets<Image>) -> Option<Vec2> {
+    pub fn get_logical_size(
+        &self,
+        windows: &Windows,
+        images: &Assets<Image>,
+        manual_texture_views: &ManualTextureViews,
+    ) {
         match self {
             RenderTarget::Window(window_id) => windows
                 .get(*window_id)
@@ -82,6 +98,9 @@ impl RenderTarget {
                 let Extent3d { width, height, .. } = image.texture_descriptor.size;
                 Vec2::new(width as f32, height as f32)
             }),
+            RenderTarget::TextureView(id) => manual_texture_views
+                .get(id)
+                .map(|(_, size)| Vec2::new(size.x as f32, size.y as f32)),
         }
     }
     // Check if this render target is contained in the given changed windows or images.
@@ -93,6 +112,7 @@ impl RenderTarget {
         match self {
             RenderTarget::Window(window_id) => changed_window_ids.contains(window_id),
             RenderTarget::Image(image_handle) => changed_image_handles.contains(&image_handle),
+            RenderTarget::TextureView(_) => true,
         }
     }
 }
