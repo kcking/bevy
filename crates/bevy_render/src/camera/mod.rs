@@ -82,20 +82,30 @@ fn extract_cameras(
     windows: Res<Windows>,
     images: Res<Assets<Image>>,
     query: Query<(Entity, &Camera, &GlobalTransform, &VisibleEntities)>,
+    manual_texture_views: Res<ManualTextureViews>,
 ) {
+    let manual_texture_views = manual_texture_views.as_ref();
     let mut entities = HashMap::default();
     for camera in active_cameras.iter() {
         let name = &camera.name;
         if let Some((entity, camera, transform, visible_entities)) =
             camera.entity.and_then(|e| query.get(e).ok())
         {
-            if let Some(size) = camera.target.get_physical_size(&windows, &images) {
+            if let Some(size) =
+                camera
+                    .target
+                    .get_physical_size(&windows, &images, manual_texture_views)
+            {
                 entities.insert(name.clone(), entity);
                 commands.get_or_spawn(entity).insert_bundle((
                     ExtractedCamera {
                         target: camera.target.clone(),
                         name: camera.name.clone(),
-                        physical_size: camera.target.get_physical_size(&windows, &images),
+                        physical_size: camera.target.get_physical_size(
+                            &windows,
+                            &images,
+                            manual_texture_views,
+                        ),
                     },
                     ExtractedView {
                         projection: camera.projection_matrix,

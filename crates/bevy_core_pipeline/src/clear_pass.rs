@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::ClearColor;
 use bevy_ecs::prelude::*;
 use bevy_render::{
-    camera::{ExtractedCamera, RenderTarget},
+    camera::{ExtractedCamera, ManualTextureViews, RenderTarget},
     prelude::Image,
     render_asset::RenderAssets,
     render_graph::{Node, NodeRunError, RenderGraphContext, SlotInfo},
@@ -88,6 +88,7 @@ impl Node for ClearPassNode {
         // instead of "views". This should be removed once full RenderTargets are implemented.
         let windows = world.get_resource::<ExtractedWindows>().unwrap();
         let images = world.get_resource::<RenderAssets<Image>>().unwrap();
+        let manual_texture_views = world.get_resource::<ManualTextureViews>().unwrap();
         for target in clear_color.per_target.keys().cloned().chain(
             windows
                 .values()
@@ -100,7 +101,9 @@ impl Node for ClearPassNode {
             let pass_descriptor = RenderPassDescriptor {
                 label: Some("clear_pass"),
                 color_attachments: &[RenderPassColorAttachment {
-                    view: target.get_texture_view(windows, images).unwrap(),
+                    view: target
+                        .get_texture_view(windows, images, manual_texture_views)
+                        .unwrap(),
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear((*clear_color.get(&target)).into()),

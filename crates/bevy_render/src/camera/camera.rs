@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use crate::{
     camera::CameraProjection, prelude::Image, render_asset::RenderAssets,
     render_resource::TextureView, view::ExtractedWindows,
@@ -49,7 +51,16 @@ impl Default for RenderTarget {
     }
 }
 
-type ManualTextureViews = HashMap<Uuid, (TextureView, UVec2)>;
+pub struct ManualTextureViews(HashMap<Uuid, (TextureView, UVec2)>);
+
+impl Deref for ManualTextureViews {
+    type Target = HashMap<Uuid, (TextureView, UVec2)>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl RenderTarget {
     pub fn get_texture_view<'a>(
         &self,
@@ -89,7 +100,7 @@ impl RenderTarget {
         windows: &Windows,
         images: &Assets<Image>,
         manual_texture_views: &ManualTextureViews,
-    ) {
+    ) -> Option<Vec2> {
         match self {
             RenderTarget::Window(window_id) => windows
                 .get(*window_id)
@@ -99,6 +110,7 @@ impl RenderTarget {
                 Vec2::new(width as f32, height as f32)
             }),
             RenderTarget::TextureView(id) => manual_texture_views
+                .deref()
                 .get(id)
                 .map(|(_, size)| Vec2::new(size.x as f32, size.y as f32)),
         }
@@ -140,8 +152,11 @@ impl Camera {
         images: &Assets<Image>,
         camera_transform: &GlobalTransform,
         world_position: Vec3,
+        manual_texture_views: &ManualTextureViews,
     ) -> Option<Vec2> {
-        let window_size = self.target.get_logical_size(windows, images)?;
+        let window_size = self
+            .target
+            .get_logical_size(windows, images, manual_texture_views)?;
         // Build a transform to convert from world to NDC using camera data
         let world_to_ndc: Mat4 =
             self.projection_matrix * camera_transform.compute_matrix().inverse();
@@ -171,6 +186,7 @@ pub fn camera_system<T: CameraProjection + Component>(
         QueryState<(Entity, &mut Camera, &mut T)>,
         QueryState<Entity, Added<Camera>>,
     )>,
+    manual_texture_views: Res<ManualTextureViews>,
 ) {
     let mut changed_window_ids = Vec::new();
     // handle resize events. latest events are handled first because we only want to resize each
@@ -215,7 +231,11 @@ pub fn camera_system<T: CameraProjection + Component>(
             || added_cameras.contains(&entity)
             || camera_projection.is_changed()
         {
-            if let Some(size) = camera.target.get_logical_size(&windows, &images) {
+            if let Some(size) =
+                camera
+                    .target
+                    .get_logical_size(&windows, &images, &manual_texture_views.as_ref())
+            {
                 camera_projection.update(size.x, size.y);
                 camera.projection_matrix = camera_projection.get_projection_matrix();
                 camera.depth_calculation = camera_projection.depth_calculation();
