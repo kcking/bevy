@@ -29,7 +29,6 @@ fn startup(
     mut xr_system: ResMut<XrSystem>,
     mut app_exit_events: EventWriter<AppExit>,
 ) {
-    c.spawn_bundle(PerspectiveCameraBundle::default());
     if xr_system.is_session_mode_supported(XrSessionMode::ImmersiveVR) {
         xr_system.request_session_mode(XrSessionMode::ImmersiveVR);
     } else {
@@ -53,6 +52,16 @@ fn startup(
         name: "right_squeeze".into(),
         action_type: XrActionType::Scalar,
     };
+
+    c.spawn_bundle(PointLightBundle {
+        point_light: PointLight {
+            intensity: 1500.0,
+            shadows_enabled: true,
+            ..Default::default()
+        },
+        transform: Transform::from_xyz(4.0, 8.0, 4.0),
+        ..Default::default()
+    });
 
     let oculus_profile = XrProfileDescriptor {
         profile: OCULUS_TOUCH_PROFILE.into(),

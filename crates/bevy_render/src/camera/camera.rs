@@ -62,6 +62,12 @@ impl Deref for ManualTextureViews {
     }
 }
 
+impl std::ops::DerefMut for ManualTextureViews {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl RenderTarget {
     pub fn get_texture_view<'a>(
         &self,

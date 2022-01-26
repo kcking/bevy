@@ -6,7 +6,9 @@ use ash::util::read_spv;
 use ash::vk::{self, Pipeline, RenderPass};
 use ash::vk::{Handle, PipelineLayout};
 use bevy_ecs::prelude::Component;
-use bevy_render::camera::{Camera, PerspectiveCameraBundle};
+use bevy_math::UVec2;
+use bevy_render::camera::{Camera, ManualTextureViews, PerspectiveCameraBundle};
+use bevy_utils::Uuid;
 pub use interaction::*;
 
 use bevy_app::{App, AppExit, CoreStage, Events, ManualEventReader, Plugin};
@@ -21,7 +23,10 @@ use parking_lot::RwLock;
 use presentation::GraphicsContextHandles;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
+use std::num::NonZeroU32;
 use std::{error::Error, ops::Deref, sync::Arc, thread, time::Duration};
+use wgpu::{TextureUsages, TextureViewDescriptor};
+use wgpu_hal::ColorAttachment;
 use xr::CompositionLayerBase;
 
 const PIPELINE_DEPTH: usize = 2;
@@ -401,7 +406,7 @@ fn runner(mut app: App) {
 
     let session = OpenXrSession {
         inner: Some(session),
-        _wgpu_device: ctx.wgpu_device,
+        _wgpu_device: ctx.wgpu_device.clone(),
     };
 
     // The user can have a limited access to the OpenXR session using OpenXrSession, which is
@@ -509,6 +514,9 @@ fn runner(mut app: App) {
 
     let mut swapchain = None;
     let mut running = false;
+
+    //  hack to run once for now
+    let mut cameras_spawned = false;
     'session_loop: loop {
         while let Some(event) = ctx.instance.poll_event(&mut event_storage).unwrap() {
             match event {
@@ -658,8 +666,6 @@ fn runner(mut app: App) {
             // );
         }
 
-        app.update();
-
         let (_, views) = session
             .locate_views(view_type, frame_state.predicted_display_time, &stage)
             .unwrap();
@@ -672,24 +678,103 @@ fn runner(mut app: App) {
             width: view_cfgs[0].recommended_image_rect_width,
             height: view_cfgs[0].recommended_image_rect_height,
         };
-        let swapchain = swapchain.get_or_insert_with(|| {
-            create_swapchain(
-                &vk_session,
-                &vk_device,
-                &resolution,
-                view_cfgs.len() as u32,
-                queue_family_index,
-                queue_index,
-                views.len() as u32,
-                render_pass,
-            )
-            .unwrap()
+        let wgpusize = wgpu::Extent3d {
+            width: resolution.width,
+            height: resolution.height,
+            depth_or_array_layers: 1,
+        };
+        let swapchains = swapchain.get_or_insert_with(|| EyeSwapchains {
+            left: create_swapchain(&vk_session, &vk_device, &resolution).unwrap(),
+            right: create_swapchain(&vk_session, &vk_device, &resolution).unwrap(),
         });
 
-        let image_index = swapchain.handle.acquire_image().unwrap();
-        swapchain.handle.wait_image(xr::Duration::INFINITE).unwrap();
+        let right_tex =
+            swapchains.right.images[swapchains.right.handle.acquire_image().unwrap() as usize];
 
-        let tex = swapchain.buffers[image_index as usize].color;
+        let right_tex = unsafe {
+            <wgpu_hal::api::Vulkan as wgpu_hal::Api>::Device::texture_from_raw(
+                right_tex,
+                &wgpu_hal::TextureDescriptor {
+                    label: None,
+                    size: wgpusize,
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    //  TODO: openxr spec says to avoid unorm
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    usage: wgpu_hal::TextureUses::empty(),
+                    //  TODO: shrug
+                    memory_flags: wgpu_hal::MemoryFlags::empty(),
+                },
+                None,
+            )
+        };
+
+        let right_tex = unsafe {
+            ctx.wgpu_device
+                .create_texture_from_hal::<wgpu_hal::api::Vulkan>(
+                    right_tex,
+                    &wgpu::TextureDescriptor {
+                        size: wgpusize,
+                        sample_count: 1,
+                        mip_level_count: 1,
+                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        usage: TextureUsages::empty(),
+                        dimension: wgpu::TextureDimension::D2,
+                        label: None,
+                    },
+                )
+        };
+        let right_tex_view = right_tex.create_view(&TextureViewDescriptor::default());
+        let left_tex =
+            swapchains.left.images[swapchains.left.handle.acquire_image().unwrap() as usize];
+
+        let left_id = Uuid::from_u128(0u128);
+        let right_id = Uuid::from_u128(1u128);
+        let mut manual_texture_views = app.world.get_resource_mut::<ManualTextureViews>().unwrap();
+        // manual_texture_views.insert(left_id, left_tex);
+        manual_texture_views.insert(
+            right_id,
+            (
+                right_tex_view.into(),
+                UVec2::new(resolution.width, resolution.height),
+            ),
+        );
+
+        let mut clear_color = app
+            .world
+            .get_resource_mut::<bevy_core_pipeline::ClearColor>()
+            .unwrap();
+        clear_color.insert(
+            bevy_render::camera::RenderTarget::TextureView(right_id),
+            bevy_render::prelude::Color::ORANGE,
+        );
+
+        let camera = PerspectiveCameraBundle {
+            camera: Camera {
+                target: bevy_render::camera::RenderTarget::TextureView(right_id),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        if !cameras_spawned {
+            app.world.spawn().insert_bundle(camera);
+            cameras_spawned = true;
+        }
+
+        app.update();
+
+        swapchains
+            .right
+            .handle
+            .wait_image(xr::Duration::INFINITE)
+            .unwrap();
+        swapchains
+            .left
+            .handle
+            .wait_image(xr::Duration::INFINITE)
+            .unwrap();
 
         unsafe {
             vk_device
@@ -707,7 +792,8 @@ fn runner(mut app: App) {
             },
         };
 
-        swapchain.handle.release_image().unwrap();
+        swapchains.left.handle.release_image().unwrap();
+        swapchains.right.handle.release_image().unwrap();
 
         match &mut frame_stream {
             FrameStream::Vulkan(frame_stream) => frame_stream
@@ -721,8 +807,7 @@ fn runner(mut app: App) {
                                 .fov(views[0].fov)
                                 .sub_image(
                                     xr::SwapchainSubImage::new()
-                                        .swapchain(&swapchain.handle)
-                                        .image_array_index(0)
+                                        .swapchain(&swapchains.left.handle)
                                         .image_rect(rect),
                                 ),
                             xr::CompositionLayerProjectionView::new()
@@ -730,8 +815,7 @@ fn runner(mut app: App) {
                                 .fov(views[1].fov)
                                 .sub_image(
                                     xr::SwapchainSubImage::new()
-                                        .swapchain(&swapchain.handle)
-                                        .image_array_index(1)
+                                        .swapchain(&swapchains.right.handle)
                                         .image_rect(rect),
                                 ),
                         ]),
@@ -768,7 +852,48 @@ fn runner(mut app: App) {
 
 pub const COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
 
-pub(crate) fn create_swapchain(
+struct EyeSwapchains {
+    left: Swapchain,
+    right: Swapchain,
+}
+
+fn create_swapchain(
+    xr_session: &xr::Session<xr::Vulkan>,
+    vk_device: &ash::Device,
+    resolution: &vk::Extent2D,
+) -> Result<Swapchain, OpenXrError> {
+    let swapchain = xr_session
+        .create_swapchain(&xr::SwapchainCreateInfo {
+            create_flags: xr::SwapchainCreateFlags::EMPTY,
+            usage_flags: xr::SwapchainUsageFlags::COLOR_ATTACHMENT,
+            format: COLOR_FORMAT.as_raw() as u32,
+            sample_count: 1,
+            width: resolution.width,
+            height: resolution.height,
+            face_count: 1,
+            array_size: 1,
+            mip_count: 1,
+        })
+        .map_err(OpenXrError::SwapchainCreation)?;
+    let images: Vec<_> = swapchain
+        .enumerate_images()
+        .unwrap()
+        .into_iter()
+        .map(|color_image| {
+            let color_image = vk::Image::from_raw(color_image);
+
+            color_image
+        })
+        .collect();
+    Ok(Swapchain {
+        resolution: *resolution,
+        handle: swapchain,
+        buffers: vec![],
+        images,
+    })
+}
+
+pub(crate) fn create_swapchain_multiview(
     xr_session: &xr::Session<xr::Vulkan>,
     vk_device: &ash::Device,
     resolution: &vk::Extent2D,
@@ -834,6 +959,7 @@ pub(crate) fn create_swapchain(
         resolution: *resolution,
         handle: swapchain,
         buffers,
+        images: vec![],
     })
 }
 
@@ -841,6 +967,7 @@ struct Swapchain {
     handle: xr::Swapchain<xr::Vulkan>,
     buffers: Vec<Framebuffer>,
     resolution: vk::Extent2D,
+    images: Vec<vk::Image>,
 }
 
 struct Framebuffer {
