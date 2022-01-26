@@ -26,7 +26,7 @@ use std::io::Cursor;
 use std::num::NonZeroU32;
 use std::{error::Error, ops::Deref, sync::Arc, thread, time::Duration};
 use wgpu::{TextureUsages, TextureViewDescriptor};
-use wgpu_hal::ColorAttachment;
+use wgpu_hal::{ColorAttachment, TextureUses};
 use xr::CompositionLayerBase;
 
 const PIPELINE_DEPTH: usize = 2;
@@ -700,13 +700,12 @@ fn runner(mut app: App) {
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
-                    //  TODO: openxr spec says to avoid unorm
                     format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    usage: wgpu_hal::TextureUses::empty(),
+                    usage: TextureUses::COLOR_TARGET| TextureUses::RESOURCE,
                     //  TODO: shrug
                     memory_flags: wgpu_hal::MemoryFlags::empty(),
                 },
-                None,
+                Some(Box::new(())),
             )
         };
 
@@ -719,13 +718,22 @@ fn runner(mut app: App) {
                         sample_count: 1,
                         mip_level_count: 1,
                         format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                        usage: TextureUsages::empty(),
+                        usage: TextureUsages::RENDER_ATTACHMENT,
                         dimension: wgpu::TextureDimension::D2,
                         label: None,
                     },
                 )
         };
-        let right_tex_view = right_tex.create_view(&TextureViewDescriptor::default());
+        let right_tex_view = right_tex.create_view(&TextureViewDescriptor {
+            label: None,
+            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+            mip_level_count: None,
+            base_mip_level: 0,
+            array_layer_count: None,
+            base_array_layer: 0,
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            aspect: wgpu::TextureAspect::All,
+        });
         let left_tex =
             swapchains.left.images[swapchains.left.handle.acquire_image().unwrap() as usize];
 
