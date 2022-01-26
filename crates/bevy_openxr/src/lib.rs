@@ -692,6 +692,7 @@ fn runner(mut app: App) {
             swapchains.right.images[swapchains.right.handle.acquire_image().unwrap() as usize];
 
         let right_tex = unsafe {
+            //  TODO: this leaves the memory block: None in this texture, is that ok?
             <wgpu_hal::api::Vulkan as wgpu_hal::Api>::Device::texture_from_raw(
                 right_tex,
                 &wgpu_hal::TextureDescriptor {
@@ -701,8 +702,7 @@ fn runner(mut app: App) {
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
                     format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    usage: TextureUses::COLOR_TARGET| TextureUses::RESOURCE,
-                    //  TODO: shrug
+                    usage: TextureUses::COLOR_TARGET | TextureUses::RESOURCE,
                     memory_flags: wgpu_hal::MemoryFlags::empty(),
                 },
                 Some(Box::new(())),
@@ -718,14 +718,14 @@ fn runner(mut app: App) {
                         sample_count: 1,
                         mip_level_count: 1,
                         format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                        usage: TextureUsages::RENDER_ATTACHMENT,
+                        usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::STORAGE_BINDING,
                         dimension: wgpu::TextureDimension::D2,
-                        label: None,
+                        label: Some("right_eye"),
                     },
                 )
         };
         let right_tex_view = right_tex.create_view(&TextureViewDescriptor {
-            label: None,
+            label: Some("right_eye"),
             format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
             mip_level_count: None,
             base_mip_level: 0,
@@ -873,7 +873,8 @@ fn create_swapchain(
     let swapchain = xr_session
         .create_swapchain(&xr::SwapchainCreateInfo {
             create_flags: xr::SwapchainCreateFlags::EMPTY,
-            usage_flags: xr::SwapchainUsageFlags::COLOR_ATTACHMENT,
+            usage_flags: xr::SwapchainUsageFlags::COLOR_ATTACHMENT
+                | xr::SwapchainUsageFlags::SAMPLED,
             format: COLOR_FORMAT.as_raw() as u32,
             sample_count: 1,
             width: resolution.width,
