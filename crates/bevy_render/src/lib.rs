@@ -31,7 +31,7 @@ use bevy_utils::tracing::debug;
 pub use once_cell;
 
 use crate::{
-    camera::CameraPlugin,
+    camera::{CameraPlugin, ManualTextureViews},
     color::Color,
     mesh::MeshPlugin,
     primitives::{CubemapFrusta, Frustum},
@@ -118,6 +118,7 @@ impl Plugin for RenderPlugin {
             .init_asset_loader::<ShaderLoader>()
             .register_type::<Color>();
 
+        app.init_resource::<ManualTextureViews>();
         if let Some(backends) = options.backends {
             let instance = wgpu::Instance::new(backends);
             let surface = {
@@ -175,6 +176,8 @@ impl Plugin for RenderPlugin {
                 .insert_resource(render_pipeline_cache)
                 .insert_resource(asset_server)
                 .init_resource::<RenderGraph>();
+
+            render_app.add_system_to_stage(RenderStage::Extract, extract_manual_texture_views);
 
             app.add_sub_app(RenderApp, render_app, move |app_world, render_app| {
                 #[cfg(feature = "trace")]
@@ -315,4 +318,11 @@ fn extract(app_world: &mut World, render_app: &mut App) {
     app_world.insert_resource(ScratchRenderWorld(scratch_world));
 
     extract.apply_buffers(&mut render_app.world);
+}
+
+fn extract_manual_texture_views(
+    manual_texture_views: Res<ManualTextureViews>,
+    mut world: ResMut<RenderWorld>,
+) {
+    world.insert_resource::<ManualTextureViews>(manual_texture_views.clone());
 }

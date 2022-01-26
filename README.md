@@ -4,13 +4,13 @@ Run the example with `cargo run --example vr_cubes`
 
 This branch has 0.6 rebased in.
 
-[x] Get anything to render at all with vulkan
-[] Use wgpu instead of Vulkan abstractions
+- [x] Get anything to render at all with vulkan
+- [] Use wgpu instead of Vulkan abstractions
 
     - vk::ImageView -> wgpu::TextureView
     - vk::Image -> wgpu::Texture
 
-[] Integrate with bevy render pipeline
+- [] Integrate with bevy render pipeline
 
     - using multiview would likely require modifying bevy shaders
     - instead we could add 2 cameras and have bevy render both

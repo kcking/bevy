@@ -22,10 +22,14 @@ fn main() {
         .run();
 }
 
-fn dummy() {
-}
+fn dummy() {}
 
-fn startup(mut xr_system: ResMut<XrSystem>, mut app_exit_events: EventWriter<AppExit>) {
+fn startup(
+    mut c: Commands,
+    mut xr_system: ResMut<XrSystem>,
+    mut app_exit_events: EventWriter<AppExit>,
+) {
+    c.spawn_bundle(PerspectiveCameraBundle::default());
     if xr_system.is_session_mode_supported(XrSessionMode::ImmersiveVR) {
         xr_system.request_session_mode(XrSessionMode::ImmersiveVR);
     } else {

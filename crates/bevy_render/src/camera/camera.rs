@@ -51,6 +51,7 @@ impl Default for RenderTarget {
     }
 }
 
+#[derive(Default, Clone)]
 pub struct ManualTextureViews(HashMap<Uuid, (TextureView, UVec2)>);
 
 impl Deref for ManualTextureViews {
