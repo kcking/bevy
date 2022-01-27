@@ -359,56 +359,41 @@ fn runner(mut app: App) {
     app.world.insert_resource(environment_blend_mode);
 
     let vk_device = match &ctx.graphics_handles {
-        GraphicsContextHandles::Vulkan {
-            instance,
-            physical_device,
-            device,
-            queue_family_index,
-            queue_index,
-        } => device.clone(),
+        GraphicsContextHandles::Vulkan { device, .. } => device.clone(),
     };
 
-    let (
-        queue_family_index,
-        queue_index,
-        vk_session,
-        session,
-        graphics_session,
-        mut frame_waiter,
-        mut frame_stream,
-    ) = match ctx.graphics_handles {
-        GraphicsContextHandles::Vulkan {
-            instance,
-            physical_device,
-            device,
-            queue_family_index,
-            queue_index,
-        } => {
-            let (session, frame_waiter, frame_stream) = unsafe {
-                ctx.instance
-                    .create_session(
-                        ctx.system,
-                        &xr::vulkan::SessionCreateInfo {
-                            instance: instance.handle().as_raw() as *const _,
-                            physical_device: physical_device.as_raw() as *const _,
-                            device: device.handle().as_raw() as *const _,
-                            queue_family_index,
-                            queue_index,
-                        },
-                    )
-                    .unwrap()
-            };
-            (
+    let (vk_session, session, _graphics_session, mut frame_waiter, mut frame_stream) =
+        match ctx.graphics_handles {
+            GraphicsContextHandles::Vulkan {
+                instance,
+                physical_device,
+                device,
                 queue_family_index,
                 queue_index,
-                session.clone(),
-                session.clone().into_any_graphics(),
-                SessionBackend::Vulkan(session),
-                frame_waiter,
-                FrameStream::Vulkan(frame_stream),
-            )
-        }
-    };
+            } => {
+                let (session, frame_waiter, frame_stream) = unsafe {
+                    ctx.instance
+                        .create_session(
+                            ctx.system,
+                            &xr::vulkan::SessionCreateInfo {
+                                instance: instance.handle().as_raw() as *const _,
+                                physical_device: physical_device.as_raw() as *const _,
+                                device: device.handle().as_raw() as *const _,
+                                queue_family_index,
+                                queue_index,
+                            },
+                        )
+                        .unwrap()
+                };
+                (
+                    session.clone(),
+                    session.clone().into_any_graphics(),
+                    SessionBackend::Vulkan(session),
+                    frame_waiter,
+                    FrameStream::Vulkan(frame_stream),
+                )
+            }
+        };
 
     let session = OpenXrSession {
         inner: Some(session),
@@ -457,64 +442,6 @@ fn runner(mut app: App) {
     let mut vibration_event_reader = ManualEventReader::default();
 
     let mut event_storage = xr::EventDataBuffer::new();
-
-    let (cmds, fences) = unsafe {
-        let cmd_pool = vk_device
-            .create_command_pool(
-                &vk::CommandPoolCreateInfo::builder()
-                    .queue_family_index(queue_family_index)
-                    .flags(
-                        vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER
-                            | vk::CommandPoolCreateFlags::TRANSIENT,
-                    ),
-                None,
-            )
-            .unwrap();
-        let cmds = vk_device
-            .allocate_command_buffers(
-                &vk::CommandBufferAllocateInfo::builder()
-                    .command_pool(cmd_pool)
-                    .command_buffer_count(PIPELINE_DEPTH as u32),
-            )
-            .unwrap();
-        let fences = (0..PIPELINE_DEPTH)
-            .map(|_| {
-                vk_device
-                    .create_fence(
-                        &vk::FenceCreateInfo::builder().flags(vk::FenceCreateFlags::SIGNALED),
-                        None,
-                    )
-                    .unwrap()
-            })
-            .collect::<Vec<_>>();
-
-        (cmds, fences)
-    };
-
-    let view_count = 2;
-    let render_pass =
-        unsafe { create_render_pass(&vk_device, queue_family_index, queue_index, view_count) };
-    let queue = unsafe { vk_device.get_device_queue(queue_family_index, 0) };
-
-    #[derive(Component)]
-    enum Eye {
-        Left,
-        Right,
-    }
-    let left_camera = app
-        .world
-        .spawn()
-        .insert_bundle(PerspectiveCameraBundle::default())
-        .insert(Eye::Left)
-        .id();
-    let right_camera = app
-        .world
-        .spawn()
-        .insert_bundle(PerspectiveCameraBundle::default())
-        .insert(Eye::Right)
-        .id();
-
-    let mut frame: usize = 0;
 
     let mut swapchain = None;
     let mut running = false;
@@ -856,8 +783,6 @@ fn runner(mut app: App) {
         {
             session.request_exit().unwrap();
         }
-
-        frame += 1;
     }
 }
 

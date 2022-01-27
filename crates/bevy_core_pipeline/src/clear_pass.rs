@@ -98,9 +98,6 @@ impl Node for ClearPassNode {
             if cleared_targets.contains(&target) {
                 continue;
             }
-            let view = target
-                .get_texture_view(windows, images, manual_texture_views)
-                .unwrap();
             let pass_descriptor = RenderPassDescriptor {
                 label: Some("clear_pass"),
                 color_attachments: &[RenderPassColorAttachment {
