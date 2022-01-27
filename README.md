@@ -19,6 +19,7 @@ This branch has 0.6 rebased in.
 
 - [] Add back in motion controller/input support (it was ripped out in an effort to get the example to not panic)
 - [x] Prevent window from opening (shows as Not Responding on Windows OS).
+- [ ] Open Question: ability to have winit windows co-exist with openxr runner
 - [] Fix Android lifecycle integration
 
   - I have to re-check whether this works since we removed the creation of a primary window
