@@ -101,7 +101,6 @@ impl Node for ClearPassNode {
             let view = target
                 .get_texture_view(windows, images, manual_texture_views)
                 .unwrap();
-            dbg!(&view);
             let pass_descriptor = RenderPassDescriptor {
                 label: Some("clear_pass"),
                 color_attachments: &[RenderPassColorAttachment {
@@ -117,7 +116,6 @@ impl Node for ClearPassNode {
                 depth_stencil_attachment: None,
             };
 
-            dbg!(target);
             render_context
                 .command_encoder
                 .begin_render_pass(&pass_descriptor);
