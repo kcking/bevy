@@ -279,6 +279,12 @@ impl Plugin for OpenXrPlugin {
         let graphics_context = context.graphics_context.take().unwrap();
         println!("got graphics context");
 
+        let dev = bevy_render::renderer::RenderDevice::from(graphics_context.device.clone());
+        let queue = bevy_render::renderer::RenderQueue::from(graphics_context.queue.clone());
+
+        //override default render stuff
+        app.insert_resource(dev).insert_resource(queue);
+
         app.insert_resource::<XrGraphicsContext>(graphics_context)
             .set_runner(runner);
     }
@@ -314,7 +320,7 @@ fn runner(mut app: App) {
 
     app.world
         .insert_resource(XrSystem::new(available_session_modes));
-
+    println!("inserted XrSystem");
     // Run the startup systems. The user can verify which session modes are supported and choose
     // one.
     app.schedule
@@ -508,8 +514,6 @@ fn runner(mut app: App) {
         .insert(Eye::Right)
         .id();
 
-    let (pipeline_layout, pipeline) = unsafe { create_pipeline(&vk_device, render_pass) };
-
     let mut frame: usize = 0;
 
     let mut swapchain = None;
@@ -692,7 +696,6 @@ fn runner(mut app: App) {
             swapchains.right.images[swapchains.right.handle.acquire_image().unwrap() as usize];
 
         let right_tex = unsafe {
-            //  TODO: this leaves the memory block: None in this texture, is that ok?
             <wgpu_hal::api::Vulkan as wgpu_hal::Api>::Device::texture_from_raw(
                 right_tex,
                 &wgpu_hal::TextureDescriptor {
@@ -784,14 +787,14 @@ fn runner(mut app: App) {
             .wait_image(xr::Duration::INFINITE)
             .unwrap();
 
-        unsafe {
-            vk_device
-                .wait_for_fences(&[fences[frame % PIPELINE_DEPTH]], true, u64::MAX)
-                .unwrap();
-            vk_device
-                .reset_fences(&[fences[frame % PIPELINE_DEPTH]])
-                .unwrap();
-        }
+        // unsafe {
+        //     vk_device
+        //         .wait_for_fences(&[fences[frame % PIPELINE_DEPTH]], true, u64::MAX)
+        //         .unwrap();
+        //     vk_device
+        //         .reset_fences(&[fences[frame % PIPELINE_DEPTH]])
+        //         .unwrap();
+        // }
         let rect = xr::Rect2Di {
             offset: xr::Offset2Di { x: 0, y: 0 },
             extent: xr::Extent2Di {

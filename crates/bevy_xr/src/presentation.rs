@@ -24,7 +24,7 @@ pub enum XrVisibilityState {
 pub struct XrGraphicsContext {
     pub instance: wgpu::Instance,
     pub device: Arc<wgpu::Device>,
-    pub queue: wgpu::Queue,
+    pub queue: Arc<wgpu::Queue>,
 }
 
 // Trait implemented by XR backends that support display mode.

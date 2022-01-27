@@ -123,23 +123,38 @@ impl Plugin for RenderPlugin {
             let instance = wgpu::Instance::new(backends);
             let surface = {
                 let world = app.world.cell();
-                let windows = world.get_resource_mut::<bevy_window::Windows>().unwrap();
-                let raw_handle = windows.get_primary().map(|window| unsafe {
-                    let handle = window.raw_window_handle().get_handle();
-                    instance.create_surface(&handle)
-                });
-                raw_handle
+                world
+                    .get_resource_mut::<bevy_window::Windows>()
+                    .map(|windows| {
+                        let raw_handle = windows.get_primary().map(|window| unsafe {
+                            let handle = window.raw_window_handle().get_handle();
+                            instance.create_surface(&handle)
+                        });
+                        raw_handle
+                    })
+                    .flatten()
             };
             let request_adapter_options = wgpu::RequestAdapterOptions {
                 power_preference: options.power_preference,
                 compatible_surface: surface.as_ref(),
                 ..Default::default()
             };
-            let (device, queue) = futures_lite::future::block_on(renderer::initialize_renderer(
-                &instance,
-                &mut options,
-                &request_adapter_options,
-            ));
+            let (device, queue) = match (
+                app.world.get_resource::<renderer::RenderDevice>(),
+                app.world.get_resource::<renderer::RenderQueue>(),
+            ) {
+                (Some(dev), Some(queue)) => (dev.clone(), queue.clone()),
+                _ => futures_lite::future::block_on(renderer::initialize_renderer(
+                    &instance,
+                    &mut options,
+                    &request_adapter_options,
+                )),
+            };
+            // let (device, queue) = futures_lite::future::block_on(renderer::initialize_renderer(
+            //     &instance,
+            //     &mut options,
+            //     &request_adapter_options,
+            // ));
             debug!("Configured wgpu adapter Limits: {:#?}", &options.limits);
             debug!("Configured wgpu adapter Features: {:#?}", &options.features);
             app.insert_resource(device.clone())

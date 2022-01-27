@@ -579,7 +579,3 @@ categories = [
   "android.intent.category.LAUNCHER",
   "android.intent.category.INFO",
 ]
-
-
-[patch.crates-io]
-wgpu = { path = "../wgpu/wgpu" }

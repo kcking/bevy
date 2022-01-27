@@ -117,6 +117,7 @@ impl Node for ClearPassNode {
                 depth_stencil_attachment: None,
             };
 
+            dbg!(target);
             render_context
                 .command_encoder
                 .begin_render_pass(&pass_descriptor);

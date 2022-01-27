@@ -197,7 +197,7 @@ pub fn create_graphics_context(
             XrGraphicsContext {
                 instance: wgpu_instance,
                 device: Arc::new(wgpu_device),
-                queue: wgpu_queue,
+                queue: Arc::new(wgpu_queue),
             },
         ))
     } else {

@@ -31,12 +31,22 @@ impl PluginGroup for DefaultPlugins {
         group.add(bevy_transform::TransformPlugin::default());
         group.add(bevy_diagnostic::DiagnosticsPlugin::default());
         group.add(bevy_input::InputPlugin::default());
+        #[cfg(not(feature = "bevy_xr"))]
         group.add(bevy_window::WindowPlugin::default());
+        #[cfg(feature = "bevy_xr")]
+        group.add(bevy_window::WindowPlugin {
+            add_primary_window: false,
+            exit_on_close: false,
+        });
         group.add(bevy_asset::AssetPlugin::default());
         group.add(bevy_scene::ScenePlugin::default());
 
-        #[cfg(feature = "bevy_winit")]
+        #[cfg(all(feature = "bevy_winit", not(feature = "bevy_xr")))]
         group.add(bevy_winit::WinitPlugin::default());
+
+        //  needs to be before render plugin and after bevy_winit for now
+        #[cfg(feature = "bevy_openxr")]
+        group.add(bevy_openxr::OpenXrPlugin::default());
 
         #[cfg(feature = "bevy_render")]
         group.add(bevy_render::RenderPlugin::default());
@@ -50,6 +60,7 @@ impl PluginGroup for DefaultPlugins {
         #[cfg(feature = "bevy_text")]
         group.add(bevy_text::TextPlugin::default());
 
+        #[cfg(not(feature = "bevy_xr"))]
         #[cfg(feature = "bevy_ui")]
         group.add(bevy_ui::UiPlugin::default());
 
@@ -67,9 +78,6 @@ impl PluginGroup for DefaultPlugins {
 
         #[cfg(feature = "bevy_xr")]
         group.add(bevy_xr::XrPlugin::default());
-
-        #[cfg(feature = "bevy_openxr")]
-        group.add(bevy_openxr::OpenXrPlugin::default());
     }
 }
 
