@@ -100,7 +100,9 @@ bevy_dylib = { path = "crates/bevy_dylib", version = "0.6.0", default-features =
 bevy_internal = { path = "crates/bevy_internal", version = "0.6.0", default-features = false }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy_internal = { path = "crates/bevy_internal", version = "0.6.0", default-features = false, features = ["webgl"] }
+bevy_internal = { path = "crates/bevy_internal", version = "0.6.0", default-features = false, features = [
+  "webgl",
+] }
 
 [dev-dependencies]
 anyhow = "1.0.4"
@@ -547,8 +549,9 @@ apk_label = "Bevy Example"
 assets = "assets"
 res = "assets/android-res"
 icon = "@mipmap/ic_launcher"
-build_targets = ["aarch64-linux-android",
- #"armv7-linux-androideabi",
+build_targets = [
+  "aarch64-linux-android",
+  #"armv7-linux-androideabi",
 ]
 runtime_libs = "libs"
 
@@ -576,3 +579,7 @@ categories = [
   "android.intent.category.LAUNCHER",
   "android.intent.category.INFO",
 ]
+
+
+[patch.crates-io]
+wgpu = { path = "../wgpu/wgpu" }
