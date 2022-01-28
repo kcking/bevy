@@ -5,7 +5,10 @@ mod presentation;
 use ash::vk;
 use ash::vk::Handle;
 use bevy_math::UVec2;
-use bevy_render::camera::{Camera, ManualTextureViews, PerspectiveCameraBundle};
+use bevy_render::{
+    camera::{Camera, ManualTextureViews, PerspectiveCameraBundle},
+    prelude::Color,
+};
 use bevy_utils::Uuid;
 pub use interaction::*;
 
@@ -435,6 +438,23 @@ fn runner(mut app: App) {
     let mut swapchain = None;
     let mut running = false;
 
+    let left_id = Uuid::new_v4();
+    let right_id = Uuid::new_v4();
+
+    let clear_color_default = Color::rgb(0.4, 0.4, 0.4);
+    let mut clear_color = app
+        .world
+        .get_resource_mut::<bevy_core_pipeline::ClearColor>()
+        .unwrap();
+    clear_color.insert(
+        bevy_render::camera::RenderTarget::TextureView(right_id),
+        clear_color_default,
+    );
+    clear_color.insert(
+        bevy_render::camera::RenderTarget::TextureView(left_id),
+        clear_color_default,
+    );
+
     //  hack to run once for now
     let mut cameras_spawned = false;
     'session_loop: loop {
@@ -575,6 +595,7 @@ fn runner(mut app: App) {
             continue;
         }
 
+        //  TODO: override bevy time with predicted frame time?
         *next_vsync_time.write() = frame_state.predicted_display_time;
 
         {
@@ -594,47 +615,24 @@ fn runner(mut app: App) {
             .enumerate_view_configuration_views(ctx.system, view_type)
             .unwrap();
 
-        let resolution = vk::Extent2D {
-            width: view_cfgs[0].recommended_image_rect_width,
-            height: view_cfgs[0].recommended_image_rect_height,
-        };
-        let wgpusize = wgpu::Extent3d {
-            width: resolution.width,
-            height: resolution.height,
-            depth_or_array_layers: 1,
-        };
-        let bevysize = UVec2::new(resolution.width, resolution.height);
+        // let resolutions: [vk::Extent2D; 2] = view_cfgs.iter().map();
+        let resolutions: &Vec<vk::Extent2D> = &view_cfgs
+            .iter()
+            .map(|view_cfg| vk::Extent2D {
+                width: view_cfg.recommended_image_rect_width,
+                height: view_cfg.recommended_image_rect_height,
+            })
+            .collect();
         let device = ctx.wgpu_device.clone();
         let swapchains = swapchain
-            .get_or_insert_with(|| EyeSwapchains::new(&vk_session, resolution, device).unwrap());
+            .get_or_insert_with(|| EyeSwapchains::new(&vk_session, resolutions, device).unwrap());
 
         let left_tex = swapchains.left.acquire_texture_view().unwrap();
         let right_tex = swapchains.right.acquire_texture_view().unwrap();
 
-        let left_id = Uuid::new_v4();
-        let right_id = Uuid::new_v4();
         let mut manual_texture_views = app.world.get_resource_mut::<ManualTextureViews>().unwrap();
-        manual_texture_views.insert(left_id, (left_tex.into(), bevysize));
-        manual_texture_views.insert(
-            right_id,
-            (
-                right_tex.into(),
-                UVec2::new(resolution.width, resolution.height),
-            ),
-        );
-
-        let mut clear_color = app
-            .world
-            .get_resource_mut::<bevy_core_pipeline::ClearColor>()
-            .unwrap();
-        clear_color.insert(
-            bevy_render::camera::RenderTarget::TextureView(right_id),
-            bevy_render::prelude::Color::ORANGE,
-        );
-        clear_color.insert(
-            bevy_render::camera::RenderTarget::TextureView(left_id),
-            bevy_render::prelude::Color::BLUE,
-        );
+        manual_texture_views.insert(left_id, (left_tex.into(), resolutions[0].bevy()));
+        manual_texture_views.insert(right_id, (right_tex.into(), resolutions[1].bevy()));
 
         let camera = PerspectiveCameraBundle {
             camera: Camera {
@@ -650,14 +648,6 @@ fn runner(mut app: App) {
         }
 
         app.update();
-
-        let rect = xr::Rect2Di {
-            offset: xr::Offset2Di { x: 0, y: 0 },
-            extent: xr::Extent2Di {
-                width: resolution.width as _,
-                height: resolution.height as _,
-            },
-        };
 
         swapchains.left.release().unwrap();
         swapchains.right.release().unwrap();
@@ -675,7 +665,7 @@ fn runner(mut app: App) {
                                 .sub_image(
                                     xr::SwapchainSubImage::new()
                                         .swapchain(&swapchains.left.handle)
-                                        .image_rect(rect),
+                                        .image_rect(resolutions[0].xr()),
                                 ),
                             xr::CompositionLayerProjectionView::new()
                                 .pose(views[1].pose)
@@ -683,7 +673,7 @@ fn runner(mut app: App) {
                                 .sub_image(
                                     xr::SwapchainSubImage::new()
                                         .swapchain(&swapchains.right.handle)
-                                        .image_rect(rect),
+                                        .image_rect(resolutions[1].xr()),
                                 ),
                         ]),
                     ],
@@ -725,12 +715,12 @@ struct EyeSwapchains {
 impl EyeSwapchains {
     fn new(
         xr_session: &xr::Session<xr::Vulkan>,
-        resolution: vk::Extent2D,
+        resolutions: &[vk::Extent2D],
         device: Arc<wgpu::Device>,
     ) -> Result<Self, OpenXrError> {
         Ok(Self {
-            left: create_swapchain(xr_session, resolution, device.clone())?,
-            right: create_swapchain(xr_session, resolution, device.clone())?,
+            left: create_swapchain(xr_session, resolutions[0], device.clone())?,
+            right: create_swapchain(xr_session, resolutions[1], device.clone())?,
         })
     }
 }
@@ -849,4 +839,69 @@ impl Swapchain {
     }
 }
 
-struct XrCameraBundle {}
+struct XrCameraBundle {
+    left: PerspectiveCameraBundle,
+    right: PerspectiveCameraBundle,
+}
+
+trait Size2D {
+    fn bevy(&self) -> UVec2;
+    fn wgpu(&self) -> wgpu::Extent3d;
+    fn vk(&self) -> vk::Extent2D;
+    fn xr(&self) -> xr::Rect2Di;
+}
+
+trait ToUVec2 {
+    fn to_uvec2(&self) -> UVec2;
+}
+
+impl ToUVec2 for wgpu::Extent3d {
+    fn to_uvec2(&self) -> UVec2 {
+        UVec2::new(self.width, self.height)
+    }
+}
+
+impl ToUVec2 for vk::Extent2D {
+    fn to_uvec2(&self) -> UVec2 {
+        UVec2::new(self.width, self.height)
+    }
+}
+impl ToUVec2 for UVec2 {
+    fn to_uvec2(&self) -> UVec2 {
+        *self
+    }
+}
+
+impl<T: ToUVec2> Size2D for T {
+    fn bevy(&self) -> UVec2 {
+        self.to_uvec2()
+    }
+
+    fn wgpu(&self) -> wgpu::Extent3d {
+        let uv2 = self.to_uvec2();
+        wgpu::Extent3d {
+            width: uv2.x,
+            height: uv2.y,
+            depth_or_array_layers: 1,
+        }
+    }
+
+    fn vk(&self) -> vk::Extent2D {
+        let uv2 = self.to_uvec2();
+        vk::Extent2D {
+            width: uv2.x,
+            height: uv2.y,
+        }
+    }
+
+    fn xr(&self) -> xr::Rect2Di {
+        let uv2 = self.to_uvec2();
+        xr::Rect2Di {
+            offset: xr::Offset2Di { x: 0, y: 0 },
+            extent: xr::Extent2Di {
+                width: uv2.x as _,
+                height: uv2.y as _,
+            },
+        }
+    }
+}
