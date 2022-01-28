@@ -1,19 +1,26 @@
 mod conversion;
+use conversion::*;
 mod interaction;
 mod presentation;
+mod swapchain;
+use swapchain::*;
 
 use ash::vk;
 use ash::vk::Handle;
 use bevy_math::UVec2;
 use bevy_render::{
-    camera::{Camera, ManualTextureViews, PerspectiveCameraBundle},
+    camera::{Camera, ManualTextureViews, PerspectiveCameraBundle, RenderTarget},
     prelude::Color,
 };
+use bevy_transform::components::Transform;
 use bevy_utils::Uuid;
 pub use interaction::*;
 
 use bevy_app::{App, AppExit, CoreStage, Events, ManualEventReader, Plugin};
-use bevy_ecs::schedule::Schedule;
+use bevy_ecs::{
+    prelude::{Bundle, Component},
+    schedule::Schedule,
+};
 use bevy_xr::{
     presentation::{XrEnvironmentBlendMode, XrGraphicsContext, XrInteractionMode},
     XrProfiles, XrSessionMode, XrSystem, XrTrackingSource, XrVibrationEvent, XrVisibilityState,
@@ -440,6 +447,11 @@ fn runner(mut app: App) {
 
     let left_id = Uuid::new_v4();
     let right_id = Uuid::new_v4();
+    let xr_camera = app
+        .world
+        .spawn()
+        .insert(XrCamera::new(left_id, right_id))
+        .id();
 
     let clear_color_default = Color::rgb(0.4, 0.4, 0.4);
     let mut clear_color = app
@@ -455,8 +467,6 @@ fn runner(mut app: App) {
         clear_color_default,
     );
 
-    //  hack to run once for now
-    let mut cameras_spawned = false;
     'session_loop: loop {
         while let Some(event) = ctx.instance.poll_event(&mut event_storage).unwrap() {
             match event {
@@ -634,18 +644,6 @@ fn runner(mut app: App) {
         manual_texture_views.insert(left_id, (left_tex.into(), resolutions[0].bevy()));
         manual_texture_views.insert(right_id, (right_tex.into(), resolutions[1].bevy()));
 
-        if !cameras_spawned {
-            let camera = PerspectiveCameraBundle {
-                camera: Camera {
-                    target: bevy_render::camera::RenderTarget::TextureView(right_id),
-                    ..Default::default()
-                },
-                ..Default::default()
-            };
-            app.world.spawn().insert_bundle(camera);
-            cameras_spawned = true;
-        }
-
         app.update();
 
         swapchains.left.release().unwrap();
@@ -704,203 +702,32 @@ fn runner(mut app: App) {
     }
 }
 
-pub const COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
-
-struct EyeSwapchains {
-    left: Swapchain,
-    right: Swapchain,
+#[derive(Component)]
+pub struct XrCamera {
+    pub left: PerspectiveCameraBundle,
+    pub right: PerspectiveCameraBundle,
+    pub transform: Transform,
 }
 
-impl EyeSwapchains {
-    fn new(
-        xr_session: &xr::Session<xr::Vulkan>,
-        resolutions: &[vk::Extent2D],
-        device: Arc<wgpu::Device>,
-    ) -> Result<Self, OpenXrError> {
-        Ok(Self {
-            left: create_swapchain(xr_session, resolutions[0], device.clone())?,
-            right: create_swapchain(xr_session, resolutions[1], device.clone())?,
-        })
-    }
-}
-
-fn create_swapchain(
-    xr_session: &xr::Session<xr::Vulkan>,
-    resolution: vk::Extent2D,
-    device: Arc<wgpu::Device>,
-) -> Result<Swapchain, OpenXrError> {
-    let swapchain = xr_session
-        .create_swapchain(&xr::SwapchainCreateInfo {
-            create_flags: xr::SwapchainCreateFlags::EMPTY,
-            usage_flags: xr::SwapchainUsageFlags::COLOR_ATTACHMENT,
-            format: COLOR_FORMAT.as_raw() as u32,
-            sample_count: 1,
-            width: resolution.width,
-            height: resolution.height,
-            face_count: 1,
-            array_size: 1,
-            mip_count: 1,
-        })
-        .map_err(OpenXrError::SwapchainCreation)?;
-    let images: Vec<_> = swapchain
-        .enumerate_images()
-        .unwrap()
-        .into_iter()
-        .map(|color_image| {
-            let color_image = vk::Image::from_raw(color_image);
-
-            color_image
-        })
-        .collect();
-
-    let wgpu_resolution = wgpu::Extent3d {
-        width: resolution.width,
-        height: resolution.height,
-        depth_or_array_layers: 1,
-    };
-    let textures = images
-        .iter()
-        .map(|image| {
-            let tex = unsafe {
-                <wgpu_hal::api::Vulkan as wgpu_hal::Api>::Device::texture_from_raw(
-                    *image,
-                    &wgpu_hal::TextureDescriptor {
-                        label: None,
-                        size: wgpu_resolution,
-                        mip_level_count: 1,
-                        sample_count: 1,
-                        dimension: wgpu::TextureDimension::D2,
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                        usage: TextureUses::COLOR_TARGET,
-                        memory_flags: wgpu_hal::MemoryFlags::empty(),
-                    },
-                    Some(Box::new(())),
-                )
-            };
-
-            let tex = unsafe {
-                device.create_texture_from_hal::<wgpu_hal::api::Vulkan>(
-                    tex,
-                    &wgpu::TextureDescriptor {
-                        size: wgpu_resolution,
-                        sample_count: 1,
-                        mip_level_count: 1,
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                        usage: TextureUsages::RENDER_ATTACHMENT,
-                        dimension: wgpu::TextureDimension::D2,
-                        label: None,
-                    },
-                )
-            };
-
-            tex
-        })
-        .collect();
-    Ok(Swapchain {
-        resolution,
-        handle: swapchain,
-        device,
-
-        textures,
-    })
-}
-
-struct Swapchain {
-    handle: xr::Swapchain<xr::Vulkan>,
-    resolution: vk::Extent2D,
-    device: Arc<wgpu::Device>,
-
-    textures: Vec<wgpu::Texture>,
-}
-
-impl Swapchain {
-    fn acquire_texture_view(&mut self) -> Result<wgpu::TextureView, xr::sys::Result> {
-        let idx = self.handle.acquire_image()? as usize;
-        self.handle.wait_image(xr::Duration::INFINITE)?;
-        let tex = self.textures.get(idx).unwrap();
-
-        let tex_view = tex.create_view(&TextureViewDescriptor {
-            label: None,
-            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
-            mip_level_count: None,
-            base_mip_level: 0,
-            array_layer_count: None,
-            base_array_layer: 0,
-            dimension: Some(wgpu::TextureViewDimension::D2),
-            aspect: wgpu::TextureAspect::All,
-        });
-
-        Ok(tex_view)
-    }
-
-    fn release(&mut self) -> Result<(), xr::sys::Result> {
-        self.handle.release_image()
-    }
-}
-
-struct XrCameraBundle {
-    left: PerspectiveCameraBundle,
-    right: PerspectiveCameraBundle,
-}
-
-trait Size2D {
-    fn bevy(&self) -> UVec2;
-    fn wgpu(&self) -> wgpu::Extent3d;
-    fn vk(&self) -> vk::Extent2D;
-    fn xr(&self) -> xr::Rect2Di;
-}
-
-trait ToUVec2 {
-    fn to_uvec2(&self) -> UVec2;
-}
-
-impl ToUVec2 for wgpu::Extent3d {
-    fn to_uvec2(&self) -> UVec2 {
-        UVec2::new(self.width, self.height)
-    }
-}
-
-impl ToUVec2 for vk::Extent2D {
-    fn to_uvec2(&self) -> UVec2 {
-        UVec2::new(self.width, self.height)
-    }
-}
-impl ToUVec2 for UVec2 {
-    fn to_uvec2(&self) -> UVec2 {
-        *self
-    }
-}
-
-impl<T: ToUVec2> Size2D for T {
-    fn bevy(&self) -> UVec2 {
-        self.to_uvec2()
-    }
-
-    fn wgpu(&self) -> wgpu::Extent3d {
-        let uv2 = self.to_uvec2();
-        wgpu::Extent3d {
-            width: uv2.x,
-            height: uv2.y,
-            depth_or_array_layers: 1,
-        }
-    }
-
-    fn vk(&self) -> vk::Extent2D {
-        let uv2 = self.to_uvec2();
-        vk::Extent2D {
-            width: uv2.x,
-            height: uv2.y,
-        }
-    }
-
-    fn xr(&self) -> xr::Rect2Di {
-        let uv2 = self.to_uvec2();
-        xr::Rect2Di {
-            offset: xr::Offset2Di { x: 0, y: 0 },
-            extent: xr::Extent2Di {
-                width: uv2.x as _,
-                height: uv2.y as _,
+impl XrCamera {
+    pub fn new(left_id: Uuid, right_id: Uuid) -> Self {
+        Self {
+            left: PerspectiveCameraBundle {
+                camera: Camera {
+                    target: RenderTarget::TextureView(left_id),
+                    ..Default::default()
+                },
+                ..Default::default()
             },
+            right: PerspectiveCameraBundle {
+                camera: Camera {
+                    target: RenderTarget::TextureView(right_id),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+
+            transform: Transform::default(),
         }
     }
 }
