@@ -634,15 +634,14 @@ fn runner(mut app: App) {
         manual_texture_views.insert(left_id, (left_tex.into(), resolutions[0].bevy()));
         manual_texture_views.insert(right_id, (right_tex.into(), resolutions[1].bevy()));
 
-        let camera = PerspectiveCameraBundle {
-            camera: Camera {
-                target: bevy_render::camera::RenderTarget::TextureView(right_id),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
         if !cameras_spawned {
+            let camera = PerspectiveCameraBundle {
+                camera: Camera {
+                    target: bevy_render::camera::RenderTarget::TextureView(right_id),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
             app.world.spawn().insert_bundle(camera);
             cameras_spawned = true;
         }
