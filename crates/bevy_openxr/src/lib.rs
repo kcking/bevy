@@ -603,6 +603,7 @@ fn runner(mut app: App) {
             height: resolution.height,
             depth_or_array_layers: 1,
         };
+        let bevysize = UVec2::new(resolution.width, resolution.height);
         let device = ctx.wgpu_device.clone();
         let swapchains = swapchain
             .get_or_insert_with(|| EyeSwapchains::new(&vk_session, resolution, device).unwrap());
@@ -610,14 +611,14 @@ fn runner(mut app: App) {
         let left_tex = swapchains.left.acquire_texture_view().unwrap();
         let right_tex = swapchains.right.acquire_texture_view().unwrap();
 
-        let left_id = Uuid::from_u128(0u128);
-        let right_id = Uuid::from_u128(1u128);
+        let left_id = Uuid::new_v4();
+        let right_id = Uuid::new_v4();
         let mut manual_texture_views = app.world.get_resource_mut::<ManualTextureViews>().unwrap();
-        manual_texture_views.insert(left_id, (*left_tex).clone().into());
+        manual_texture_views.insert(left_id, (left_tex.into(), bevysize));
         manual_texture_views.insert(
             right_id,
             (
-                right_tex.clone().into(),
+                right_tex.into(),
                 UVec2::new(resolution.width, resolution.height),
             ),
         );
@@ -629,6 +630,10 @@ fn runner(mut app: App) {
         clear_color.insert(
             bevy_render::camera::RenderTarget::TextureView(right_id),
             bevy_render::prelude::Color::ORANGE,
+        );
+        clear_color.insert(
+            bevy_render::camera::RenderTarget::TextureView(left_id),
+            bevy_render::prelude::Color::BLUE,
         );
 
         let camera = PerspectiveCameraBundle {
@@ -644,17 +649,6 @@ fn runner(mut app: App) {
             cameras_spawned = true;
         }
 
-        swapchains
-            .right
-            .handle
-            .wait_image(xr::Duration::INFINITE)
-            .unwrap();
-        swapchains
-            .left
-            .handle
-            .wait_image(xr::Duration::INFINITE)
-            .unwrap();
-
         app.update();
 
         let rect = xr::Rect2Di {
@@ -665,8 +659,8 @@ fn runner(mut app: App) {
             },
         };
 
-        swapchains.left.handle.release_image().unwrap();
-        swapchains.right.handle.release_image().unwrap();
+        swapchains.left.release().unwrap();
+        swapchains.right.release().unwrap();
 
         match &mut frame_stream {
             FrameStream::Vulkan(frame_stream) => frame_stream
@@ -775,7 +769,7 @@ fn create_swapchain(
         height: resolution.height,
         depth_or_array_layers: 1,
     };
-    let texture_views = images
+    let textures = images
         .iter()
         .map(|image| {
             let tex = unsafe {
@@ -809,45 +803,45 @@ fn create_swapchain(
                     },
                 )
             };
-            let tex_view = tex.create_view(&TextureViewDescriptor {
-                label: None,
-                format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
-                mip_level_count: None,
-                base_mip_level: 0,
-                array_layer_count: None,
-                base_array_layer: 0,
-                dimension: Some(wgpu::TextureViewDimension::D2),
-                aspect: wgpu::TextureAspect::All,
-            });
 
-            tex_view
+            tex
         })
         .collect();
     Ok(Swapchain {
         resolution,
         handle: swapchain,
-        images,
         device,
 
-        texture_views,
+        textures,
     })
 }
 
 struct Swapchain {
     handle: xr::Swapchain<xr::Vulkan>,
     resolution: vk::Extent2D,
-    images: Vec<vk::Image>,
     device: Arc<wgpu::Device>,
 
-    texture_views: Vec<wgpu::TextureView>,
+    textures: Vec<wgpu::Texture>,
 }
 
 impl Swapchain {
-    fn acquire_texture_view(&mut self) -> Result<&wgpu::TextureView, xr::sys::Result> {
+    fn acquire_texture_view(&mut self) -> Result<wgpu::TextureView, xr::sys::Result> {
         let idx = self.handle.acquire_image()? as usize;
         self.handle.wait_image(xr::Duration::INFINITE)?;
+        let tex = self.textures.get(idx).unwrap();
 
-        Ok(self.texture_views.get(idx).unwrap())
+        let tex_view = tex.create_view(&TextureViewDescriptor {
+            label: None,
+            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+            mip_level_count: None,
+            base_mip_level: 0,
+            array_layer_count: None,
+            base_array_layer: 0,
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            aspect: wgpu::TextureAspect::All,
+        });
+
+        Ok(tex_view)
     }
 
     fn release(&mut self) -> Result<(), xr::sys::Result> {
