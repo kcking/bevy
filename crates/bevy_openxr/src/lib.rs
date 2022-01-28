@@ -603,67 +603,21 @@ fn runner(mut app: App) {
             height: resolution.height,
             depth_or_array_layers: 1,
         };
-        let swapchains = swapchain.get_or_insert_with(|| EyeSwapchains {
-            left: create_swapchain(&vk_session, &resolution).unwrap(),
-            right: create_swapchain(&vk_session, &resolution).unwrap(),
-        });
+        let device = ctx.wgpu_device.clone();
+        let swapchains = swapchain
+            .get_or_insert_with(|| EyeSwapchains::new(&vk_session, resolution, device).unwrap());
 
-        let right_tex =
-            swapchains.right.images[swapchains.right.handle.acquire_image().unwrap() as usize];
-
-        let right_tex = unsafe {
-            <wgpu_hal::api::Vulkan as wgpu_hal::Api>::Device::texture_from_raw(
-                right_tex,
-                &wgpu_hal::TextureDescriptor {
-                    label: Some("right_eye"),
-                    size: wgpusize,
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    usage: TextureUses::COLOR_TARGET,
-                    memory_flags: wgpu_hal::MemoryFlags::empty(),
-                },
-                Some(Box::new(())),
-            )
-        };
-
-        let right_tex = unsafe {
-            ctx.wgpu_device
-                .create_texture_from_hal::<wgpu_hal::api::Vulkan>(
-                    right_tex,
-                    &wgpu::TextureDescriptor {
-                        size: wgpusize,
-                        sample_count: 1,
-                        mip_level_count: 1,
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                        usage: TextureUsages::RENDER_ATTACHMENT,
-                        dimension: wgpu::TextureDimension::D2,
-                        label: Some("right_eye"),
-                    },
-                )
-        };
-        let right_tex_view = right_tex.create_view(&TextureViewDescriptor {
-            label: Some("right_eye"),
-            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
-            mip_level_count: None,
-            base_mip_level: 0,
-            array_layer_count: None,
-            base_array_layer: 0,
-            dimension: Some(wgpu::TextureViewDimension::D2),
-            aspect: wgpu::TextureAspect::All,
-        });
-        let left_tex =
-            swapchains.left.images[swapchains.left.handle.acquire_image().unwrap() as usize];
+        let left_tex = swapchains.left.acquire_texture_view().unwrap();
+        let right_tex = swapchains.right.acquire_texture_view().unwrap();
 
         let left_id = Uuid::from_u128(0u128);
         let right_id = Uuid::from_u128(1u128);
         let mut manual_texture_views = app.world.get_resource_mut::<ManualTextureViews>().unwrap();
-        // manual_texture_views.insert(left_id, left_tex);
+        manual_texture_views.insert(left_id, (*left_tex).clone().into());
         manual_texture_views.insert(
             right_id,
             (
-                right_tex_view.into(),
+                right_tex.clone().into(),
                 UVec2::new(resolution.width, resolution.height),
             ),
         );
@@ -690,8 +644,6 @@ fn runner(mut app: App) {
             cameras_spawned = true;
         }
 
-        app.update();
-
         swapchains
             .right
             .handle
@@ -702,6 +654,8 @@ fn runner(mut app: App) {
             .handle
             .wait_image(xr::Duration::INFINITE)
             .unwrap();
+
+        app.update();
 
         let rect = xr::Rect2Di {
             offset: xr::Offset2Di { x: 0, y: 0 },
@@ -774,9 +728,23 @@ struct EyeSwapchains {
     right: Swapchain,
 }
 
+impl EyeSwapchains {
+    fn new(
+        xr_session: &xr::Session<xr::Vulkan>,
+        resolution: vk::Extent2D,
+        device: Arc<wgpu::Device>,
+    ) -> Result<Self, OpenXrError> {
+        Ok(Self {
+            left: create_swapchain(xr_session, resolution, device.clone())?,
+            right: create_swapchain(xr_session, resolution, device.clone())?,
+        })
+    }
+}
+
 fn create_swapchain(
     xr_session: &xr::Session<xr::Vulkan>,
-    resolution: &vk::Extent2D,
+    resolution: vk::Extent2D,
+    device: Arc<wgpu::Device>,
 ) -> Result<Swapchain, OpenXrError> {
     let swapchain = xr_session
         .create_swapchain(&xr::SwapchainCreateInfo {
@@ -801,10 +769,67 @@ fn create_swapchain(
             color_image
         })
         .collect();
+
+    let wgpu_resolution = wgpu::Extent3d {
+        width: resolution.width,
+        height: resolution.height,
+        depth_or_array_layers: 1,
+    };
+    let texture_views = images
+        .iter()
+        .map(|image| {
+            let tex = unsafe {
+                <wgpu_hal::api::Vulkan as wgpu_hal::Api>::Device::texture_from_raw(
+                    *image,
+                    &wgpu_hal::TextureDescriptor {
+                        label: None,
+                        size: wgpu_resolution,
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        usage: TextureUses::COLOR_TARGET,
+                        memory_flags: wgpu_hal::MemoryFlags::empty(),
+                    },
+                    Some(Box::new(())),
+                )
+            };
+
+            let tex = unsafe {
+                device.create_texture_from_hal::<wgpu_hal::api::Vulkan>(
+                    tex,
+                    &wgpu::TextureDescriptor {
+                        size: wgpu_resolution,
+                        sample_count: 1,
+                        mip_level_count: 1,
+                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        usage: TextureUsages::RENDER_ATTACHMENT,
+                        dimension: wgpu::TextureDimension::D2,
+                        label: None,
+                    },
+                )
+            };
+            let tex_view = tex.create_view(&TextureViewDescriptor {
+                label: None,
+                format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+                mip_level_count: None,
+                base_mip_level: 0,
+                array_layer_count: None,
+                base_array_layer: 0,
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                aspect: wgpu::TextureAspect::All,
+            });
+
+            tex_view
+        })
+        .collect();
     Ok(Swapchain {
-        resolution: *resolution,
+        resolution,
         handle: swapchain,
         images,
+        device,
+
+        texture_views,
     })
 }
 
@@ -812,6 +837,22 @@ struct Swapchain {
     handle: xr::Swapchain<xr::Vulkan>,
     resolution: vk::Extent2D,
     images: Vec<vk::Image>,
+    device: Arc<wgpu::Device>,
+
+    texture_views: Vec<wgpu::TextureView>,
+}
+
+impl Swapchain {
+    fn acquire_texture_view(&mut self) -> Result<&wgpu::TextureView, xr::sys::Result> {
+        let idx = self.handle.acquire_image()? as usize;
+        self.handle.wait_image(xr::Duration::INFINITE)?;
+
+        Ok(self.texture_views.get(idx).unwrap())
+    }
+
+    fn release(&mut self) -> Result<(), xr::sys::Result> {
+        self.handle.release_image()
+    }
 }
 
 struct XrCameraBundle {}
