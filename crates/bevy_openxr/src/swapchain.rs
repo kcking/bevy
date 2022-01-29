@@ -2,7 +2,7 @@ use super::*;
 use ash::vk;
 use openxr as xr;
 
-pub const COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
+pub const COLOR_FORMAT: vk::Format = vk::Format::B8G8R8A8_SRGB;
 
 pub struct EyeSwapchains {
     pub left: Swapchain,
@@ -68,7 +68,7 @@ pub fn create_swapchain(
                         mip_level_count: 1,
                         sample_count: 1,
                         dimension: wgpu::TextureDimension::D2,
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        format: wgpu::TextureFormat::Bgra8UnormSrgb,
                         usage: TextureUses::COLOR_TARGET,
                         memory_flags: wgpu_hal::MemoryFlags::empty(),
                     },
@@ -83,7 +83,7 @@ pub fn create_swapchain(
                         size: wgpu_resolution,
                         sample_count: 1,
                         mip_level_count: 1,
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        format: wgpu::TextureFormat::Bgra8UnormSrgb,
                         usage: TextureUsages::RENDER_ATTACHMENT,
                         dimension: wgpu::TextureDimension::D2,
                         label: None,
@@ -119,7 +119,7 @@ impl Swapchain {
 
         let tex_view = tex.create_view(&TextureViewDescriptor {
             label: None,
-            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+            format: Some(wgpu::TextureFormat::Bgra8UnormSrgb),
             mip_level_count: None,
             base_mip_level: 0,
             array_layer_count: None,

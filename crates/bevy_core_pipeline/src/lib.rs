@@ -377,6 +377,18 @@ pub fn extract_core_pipeline_camera_phases(
             ));
         }
     }
+
+    for eye in ["left_eye", "right_eye"] {
+        if let Some(camera_3d) = active_cameras.get(eye) {
+            if let Some(entity) = camera_3d.entity {
+                commands.get_or_spawn(entity).insert_bundle((
+                    RenderPhase::<Opaque3d>::default(),
+                    RenderPhase::<AlphaMask3d>::default(),
+                    RenderPhase::<Transparent3d>::default(),
+                ));
+            }
+        }
+    }
 }
 
 pub fn prepare_core_views_system(

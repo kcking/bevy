@@ -29,6 +29,15 @@ impl Node for MainPassDriverNode {
             )?;
         }
 
+        for eye in ["left_eye", "right_eye"] {
+            if let Some(camera_3d) = extracted_cameras.entities.get(eye) {
+                graph.run_sub_graph(
+                    crate::draw_3d_graph::NAME,
+                    vec![SlotValue::Entity(*camera_3d)],
+                )?;
+            }
+        }
+
         Ok(())
     }
 }

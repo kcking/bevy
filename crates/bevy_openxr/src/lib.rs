@@ -7,12 +7,18 @@ use swapchain::*;
 
 use ash::vk;
 use ash::vk::Handle;
-use bevy_math::UVec2;
+use bevy_math::{Quat, UVec2, Vec3};
 use bevy_render::{
-    camera::{Camera, ManualTextureViews, PerspectiveCameraBundle, RenderTarget},
-    prelude::Color,
+    camera::{
+        ActiveCameras, Camera, ManualTextureViews, PerspectiveCameraBundle, PerspectiveProjection,
+        RenderTarget,
+    },
+    prelude::{Color, Msaa},
 };
-use bevy_transform::components::Transform;
+use bevy_transform::{
+    components::{GlobalTransform, Transform},
+    hierarchy::BuildWorldChildren,
+};
 use bevy_utils::Uuid;
 pub use interaction::*;
 
@@ -20,6 +26,8 @@ use bevy_app::{App, AppExit, CoreStage, Events, ManualEventReader, Plugin};
 use bevy_ecs::{
     prelude::{Bundle, Component},
     schedule::Schedule,
+    system::{IntoSystem, Query, Res, System},
+    world::EntityMut,
 };
 use bevy_xr::{
     presentation::{XrEnvironmentBlendMode, XrGraphicsContext, XrInteractionMode},
@@ -29,6 +37,7 @@ use openxr::{self as xr, sys};
 use parking_lot::RwLock;
 use presentation::GraphicsContextHandles;
 use serde::{Deserialize, Serialize};
+use xr::View;
 
 use std::{error::Error, ops::Deref, sync::Arc, thread, time::Duration};
 use wgpu::{TextureUsages, TextureViewDescriptor};
@@ -290,6 +299,8 @@ impl Plugin for OpenXrPlugin {
 
         app.insert_resource::<XrGraphicsContext>(graphics_context)
             .set_runner(runner);
+
+        app.insert_resource(Msaa { samples: 1 });
     }
 }
 
@@ -326,10 +337,10 @@ fn runner(mut app: App) {
     println!("inserted XrSystem");
     // Run the startup systems. The user can verify which session modes are supported and choose
     // one.
-    app.schedule
-        .get_stage_mut::<Schedule>(&CoreStage::Startup)
-        .unwrap()
-        .run_once(&mut app.world);
+    // app.schedule
+    //     .get_stage_mut::<Schedule>(&CoreStage::Startup)
+    //     .unwrap()
+    //     .run_once(&mut app.world);
 
     if app_exit_event_reader
         .iter(&app.world.get_resource_mut::<Events<AppExit>>().unwrap())
@@ -447,11 +458,13 @@ fn runner(mut app: App) {
 
     let left_id = Uuid::new_v4();
     let right_id = Uuid::new_v4();
-    let xr_camera = app
-        .world
-        .spawn()
-        .insert(XrCamera::new(left_id, right_id))
-        .id();
+    XrCameras::spawn(app.world.spawn(), left_id, right_id);
+    {
+        let mut active_cameras = app.world.get_resource_mut::<ActiveCameras>().unwrap();
+        active_cameras.add("left_eye");
+        active_cameras.add("right_eye");
+    }
+    app.add_system_to_stage(CoreStage::PreUpdate, update_xrcamera_view);
 
     let clear_color_default = Color::rgb(0.4, 0.4, 0.4);
     let mut clear_color = app
@@ -644,6 +657,8 @@ fn runner(mut app: App) {
         manual_texture_views.insert(left_id, (left_tex.into(), resolutions[0].bevy()));
         manual_texture_views.insert(right_id, (right_tex.into(), resolutions[1].bevy()));
 
+        app.world.insert_resource(views.clone());
+
         app.update();
 
         swapchains.left.release().unwrap();
@@ -703,31 +718,71 @@ fn runner(mut app: App) {
 }
 
 #[derive(Component)]
-pub struct XrCamera {
-    pub left: PerspectiveCameraBundle,
-    pub right: PerspectiveCameraBundle,
-    pub transform: Transform,
+pub struct XrCameras {}
+
+#[derive(Component, Debug)]
+pub enum Eye {
+    Left,
+    Right,
 }
 
-impl XrCamera {
-    pub fn new(left_id: Uuid, right_id: Uuid) -> Self {
-        Self {
-            left: PerspectiveCameraBundle {
-                camera: Camera {
-                    target: RenderTarget::TextureView(left_id),
+impl XrCameras {
+    pub fn spawn(mut e: EntityMut, left_id: Uuid, right_id: Uuid) {
+        e.with_children(|parent| {
+            parent
+                .spawn_bundle(PerspectiveCameraBundle {
+                    camera: Camera {
+                        name: Some("left_eye".into()),
+                        target: RenderTarget::TextureView(left_id),
+                        ..Default::default()
+                    },
                     ..Default::default()
-                },
-                ..Default::default()
-            },
-            right: PerspectiveCameraBundle {
-                camera: Camera {
-                    target: RenderTarget::TextureView(right_id),
+                })
+                .insert(Eye::Left);
+            parent
+                .spawn_bundle(PerspectiveCameraBundle {
+                    camera: Camera {
+                        name: Some("right_eye".into()),
+                        target: RenderTarget::TextureView(right_id),
+                        ..Default::default()
+                    },
                     ..Default::default()
-                },
-                ..Default::default()
-            },
+                })
+                .insert(Eye::Right);
+        })
+        .insert(Transform::default())
+        .insert(GlobalTransform::default())
+        .insert(Self {});
+    }
+}
 
-            transform: Transform::default(),
-        }
+pub fn update_xrcamera_view(
+    mut cam: Query<(
+        &mut PerspectiveProjection,
+        &mut Transform,
+        &Eye,
+        &GlobalTransform,
+    )>,
+    views: Res<Vec<View>>,
+) {
+    for (mut perspective, mut transform, eye) in cam.iter_mut() {
+        // println!("updating {:?}", eye);
+        let view_idx = match eye {
+            Eye::Left => 0,
+            Eye::Right => 1,
+        };
+        let view = views.get(view_idx).unwrap();
+
+        let x_fov = view.fov.angle_left.abs() + view.fov.angle_right.abs();
+        let y_fov = view.fov.angle_up.abs() + view.fov.angle_down.abs();
+        //  y radians
+        perspective.fov = y_fov;
+        //  width / height
+        perspective.aspect_ratio = x_fov / y_fov;
+
+        let rot = view.pose.orientation;
+        transform.rotation = Quat::from_xyzw(rot.x, rot.y, rot.z, rot.w);
+        let pos = view.pose.position;
+        transform.translation = Vec3::new(pos.x, pos.y, pos.z);
     }
 }

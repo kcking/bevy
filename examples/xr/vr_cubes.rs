@@ -1,6 +1,6 @@
 use bevy::{
     app::AppExit,
-    openxr::{OpenXrPlugin, OCULUS_TOUCH_PROFILE},
+    openxr::{OpenXrPlugin, XrCameras, OCULUS_TOUCH_PROFILE},
     prelude::*,
     utils::Duration,
     xr::{
@@ -17,6 +17,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_startup_system(startup)
+        .add_startup_system(init_camera_position)
         // .add_system(interaction)
         .add_system(dummy)
         .run();
@@ -24,10 +25,19 @@ fn main() {
 
 fn dummy() {}
 
+fn init_camera_position(mut q: Query<(&mut Transform, &XrCameras)>) {
+    for (mut transform, _) in q.iter_mut() {
+        println!("updated camera");
+        transform.translation = Vec3::new(10., 10., 10.);
+    }
+}
+
 fn startup(
     mut c: Commands,
     mut xr_system: ResMut<XrSystem>,
     mut app_exit_events: EventWriter<AppExit>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     if xr_system.is_session_mode_supported(XrSessionMode::ImmersiveVR) {
         xr_system.request_session_mode(XrSessionMode::ImmersiveVR);
@@ -63,6 +73,19 @@ fn startup(
         ..Default::default()
     });
 
+    c.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
+        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+        ..Default::default()
+    });
+    // cube
+    c.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+        transform: Transform::from_xyz(0.0, 0.5, 0.0),
+        ..Default::default()
+    });
+
     let oculus_profile = XrProfileDescriptor {
         profile: OCULUS_TOUCH_PROFILE.into(),
         bindings: vec![
@@ -79,6 +102,8 @@ fn startup(
         tracked: true,
         has_haptics: true,
     };
+
+    println!("vrcubes startup done");
 
     // xr_system.set_action_set(vec![oculus_profile]);
 }
