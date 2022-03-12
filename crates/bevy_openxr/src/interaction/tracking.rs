@@ -45,8 +45,8 @@ pub fn predict_pose(
         return None;
     }
 
-    let linear_velocity = velocity.linear_velocity.map(to_vec3);
-    let angular_velocity = velocity.angular_velocity.map(to_vec3);
+    let linear_velocity = Some(to_vec3(velocity.linear_velocity));
+    let angular_velocity = Some(to_vec3(velocity.angular_velocity));
 
     Some(XrPose {
         transform: openxr_pose_to_corrected_rigid_transform(
