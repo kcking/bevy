@@ -8,7 +8,9 @@ If running on Oculus, download [oculus sdk](https://developer.oculus.com/downloa
 libs\arm64-v8a\libopenxr_loader.so
 ```
 
-You also will need android SDK 26 and android NDK setup, with $ANDROID_NDK_ROOT and $ANDROID_SDK_ROOT environemnt variables set correctly. Also install the latest `cargo-apk` with `cargo install cargo-apk -f`
+You also will need android SDK 26 and android NDK set up, with $ANDROID_NDK_ROOT and $ANDROID_SDK_ROOT environemnt variables set correctly. Also install the latest `cargo-apk` with `cargo install cargo-apk -f`
+
+If you don't already have the 64 bit ARM toolchain installed, you need to install it using `rustup target add aarch64-linux-android`
 
 Build, install, and run the apk using `cargo apk run --example vr_cubes_android --features bevy_openxr`
 
