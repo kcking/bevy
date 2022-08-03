@@ -47,13 +47,13 @@ pub enum OpenXrFormFactor {
 
 enum SessionBackend {
     Vulkan(xr::Session<xr::Vulkan>),
-    #[cfg(windows)]
+    #[cfg(all(windows, feature = "wip"))]
     D3D11(xr::Session<xr::D3D11>),
 }
 
 enum FrameStream {
     Vulkan(xr::FrameStream<xr::Vulkan>),
-    #[cfg(windows)]
+    #[cfg(all(windows, feature = "wip"))]
     D3D11(xr::FrameStream<xr::D3D11>),
 }
 
@@ -642,7 +642,7 @@ fn runner(mut app: App) {
 
         match &mut frame_stream {
             FrameStream::Vulkan(frame_stream) => frame_stream.begin().unwrap(),
-            #[cfg(windows)]
+            #[cfg(all(windows, feature = "wip"))]
             FrameStream::D3D11(frame_stream) => frame_stream.begin().unwrap(),
         }
 
@@ -651,7 +651,7 @@ fn runner(mut app: App) {
                 FrameStream::Vulkan(frame_stream) => frame_stream
                     .end(frame_state.predicted_display_time, blend_mode, &[])
                     .unwrap(),
-                #[cfg(windows)]
+                #[cfg(all(windows, feature = "wip"))]
                 FrameStream::D3D11(_) => todo!(),
             }
             continue;
@@ -734,7 +734,7 @@ fn runner(mut app: App) {
                 //  sometimes fails with ERR_INVALID_POSE on quest 2 after waking up
                 // .map_err(|e| dbg!(e));
             }
-            #[cfg(windows)]
+            #[cfg(all(windows, feature = "wip"))]
             FrameStream::D3D11(frame_stream) => frame_stream
                 .end(frame_state.predicted_display_time, blend_mode, todo!())
                 .unwrap(),
