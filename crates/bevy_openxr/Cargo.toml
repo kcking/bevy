@@ -41,6 +41,12 @@ wgpu-hal = { version = "0.13.1", features = [
 thiserror = "1.0"
 parking_lot = "0.11"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+openxr = { git = "https://github.com/Ralith/openxrs", default-features = false, features = [
+    "linked",
+    "loaded",
+] }
+
 [target.'cfg(target_os = "android")'.dependencies]
 # No official Khronos loader available for android, so load the one provided by the environment
 openxr = { git = "https://github.com/Ralith/openxrs", default-features = false, features = [
@@ -48,7 +54,7 @@ openxr = { git = "https://github.com/Ralith/openxrs", default-features = false, 
 ] }
 
 
-[target.'cfg(not(any(target_os = "android", target_os = "macos")))'.dependencies]
+[target.'cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))'.dependencies]
 openxr = { git = "https://github.com/Ralith/openxrs", default-features = false, features = [
     "static",
 ] }
