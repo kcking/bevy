@@ -10,6 +10,7 @@ use swapchain::*;
 
 use ash::vk;
 use ash::vk::Handle;
+use ash::extensions::khr::GetPhysicalDeviceProperties2;
 
 use bevy_render::{
     camera::{CameraPlugin, CameraProjection, CameraProjectionPlugin, ManualTextureViews},
@@ -314,7 +315,7 @@ impl Plugin for OpenXrPlugin {
     }
 }
 
-fn setup_interaction(system: &mut XrSystem) {
+fn setup_interaction(system: &mut XrSystem, ctx: &OpenXrContext) {
     if cfg!(target_os = "android") {
         let oculus_profile = XrProfileDescriptor {
             profile: OCULUS_TOUCH_PROFILE.into(),
@@ -343,6 +344,17 @@ fn setup_interaction(system: &mut XrSystem) {
                 ),
                 (
                     XrActionDescriptor {
+                        name: "left_grab".into(),
+                        action_type: XrActionType::Button {
+                            touch: false,
+                            click: false,
+                            value: true,
+                        },
+                    },
+                    "user/hand/left/input/squeeze".into(),
+                ),
+                (
+                    XrActionDescriptor {
                         name: "right_trigger".into(),
                         action_type: XrActionType::Button {
                             touch: true,
@@ -363,14 +375,115 @@ fn setup_interaction(system: &mut XrSystem) {
                     },
                     "/user/hand/right/input/a".into(),
                 ),
+                (
+                    XrActionDescriptor {
+                        name: "right_grab".into(),
+                        action_type: XrActionType::Button {
+                            touch: false,
+                            click: false,
+                            value: true,
+                        },
+                    },
+                    "user/hand/right/input/squeeze".into(),
+                ),
             ],
             tracked: true,
             has_haptics: true,
         };
         system.set_action_set(vec![oculus_profile]);
     } else {
+        let mut system_properties: sys::SystemProperties = sys::SystemProperties {
+            ty: sys::StructureType::SYSTEM_PROPERTIES,
+            next: std::ptr::null_mut(),
+            system_id: sys::SystemId::NULL,
+            vendor_id: 0,
+            system_name: [0; sys::MAX_SYSTEM_NAME_SIZE],
+            graphics_properties: sys::SystemGraphicsProperties::default(),
+            tracking_properties: sys::SystemTrackingProperties::default(),
+        };
+        let prop_ptr: *mut sys::SystemProperties = &mut system_properties;
+        unsafe {
+            openxr::sys::get_system_properties(ctx.instance.as_raw(), ctx.system, prop_ptr);
+        }
+
+        let my_string =  std::str::from_utf8(unsafe{std::mem::transmute(&system_properties.system_name as &[i8])}).unwrap().replace("\0", "");
+        let profile = my_string.split(" : ").collect::<Vec<&str>>()[1];
+
         //  TODO: use runtime settings or build-time features to pick active Profile
-        let action_set = XrProfileDescriptor {
+        let oculus_profile = XrProfileDescriptor {
+            profile: OCULUS_TOUCH_PROFILE.into(),
+            bindings: vec![
+                (
+                    XrActionDescriptor {
+                        name: "left_trigger".into(),
+                        action_type: XrActionType::Button {
+                            touch: true,
+                            click: false,
+                            value: true,
+                        },
+                    },
+                    "/user/hand/left/input/trigger".into(),
+                ),
+                (
+                    XrActionDescriptor {
+                        name: "left_primary".into(),
+                        action_type: XrActionType::Button {
+                            touch: true,
+                            click: true,
+                            value: false,
+                        },
+                    },
+                    "/user/hand/left/input/x".into(),
+                ),
+                (
+                    XrActionDescriptor {
+                        name: "left_grab".into(),
+                        action_type: XrActionType::Button {
+                            touch: false,
+                            click: false,
+                            value: true,
+                        },
+                    },
+                    "/user/hand/left/input/squeeze/value".into(),
+                ),
+                (
+                    XrActionDescriptor {
+                        name: "right_trigger".into(),
+                        action_type: XrActionType::Button {
+                            touch: true,
+                            click: false,
+                            value: true,
+                        },
+                    },
+                    "/user/hand/right/input/trigger".into(),
+                ),
+                (
+                    XrActionDescriptor {
+                        name: "right_primary".into(),
+                        action_type: XrActionType::Button {
+                            touch: true,
+                            click: true,
+                            value: false,
+                        },
+                    },
+                    "/user/hand/right/input/a".into(),
+                ),
+                (
+                    XrActionDescriptor {
+                        name: "right_grab".into(),
+                        action_type: XrActionType::Button {
+                            touch: false,
+                            click: false,
+                            value: true,
+                        },
+                    },
+                    "/user/hand/right/input/squeeze/value".into(),
+                ),
+            ],
+            tracked: true,
+            has_haptics: true,
+        };
+        let valve_profile = XrProfileDescriptor {
             profile: VALVE_INDEX_PROFILE.into(),
             bindings: vec![
                 (
@@ -406,6 +519,18 @@ fn setup_interaction(system: &mut XrSystem) {
                     },
                     "/user/hand/left/input/b".into(),
                 ),
+                
+                (
+                    XrActionDescriptor {
+                        name: "left_grab".into(),
+                        action_type: XrActionType::Button {
+                            touch: false,
+                            click: false,
+                            value: true,
+                        },
+                    },
+                    "/user/hand/left/input/squeeze/value".into(),
+                ),
                 (
                     XrActionDescriptor {
                         name: "right_trigger".into(),
@@ -439,9 +564,26 @@ fn setup_interaction(system: &mut XrSystem) {
                     },
                     "/user/hand/right/input/a".into(),
                 ),
+                (
+                    XrActionDescriptor {
+                        name: "right_grab".into(),
+                        action_type: XrActionType::Button {
+                            touch: false,
+                            click: false,
+                            value: true,
+                        },
+                    },
+                    "/user/hand/right/input/squeeze/value".into(),
+                ),
             ],
             tracked: true,
             has_haptics: true,
+        };
+
+        let action_set = match profile {
+            "oculus" => oculus_profile,
+            "index" => valve_profile,
+            _ => panic!("Unknown profile: {}", profile),
         };
         system.set_action_set(vec![action_set]);
     }
@@ -490,7 +632,7 @@ fn runner(mut app: App) {
     }
 
     let mut xr_system = app.world.get_resource_mut::<XrSystem>().unwrap();
-    setup_interaction(&mut xr_system);
+    setup_interaction(&mut xr_system, &ctx);
 
     let mode = xr_system.selected_session_mode();
     let bindings = xr_system.action_set();
