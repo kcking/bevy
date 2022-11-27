@@ -9,7 +9,7 @@ use bevy_render::texture::BevyDefault;
 pub const COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
 
 #[cfg(not(target_os = "android"))]
-pub const COLOR_FORMAT: vk::Format = vk::Format::B8G8R8A8_SRGB;
+pub const COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
 
 pub struct EyeSwapchains {
     pub left: Swapchain,
