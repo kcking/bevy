@@ -331,7 +331,7 @@ impl Default for WinitPersistentState {
 }
 
 #[derive(Default, Resource)]
-struct WinitCreateWindowReader(ManualEventReader<CreateWindow>);
+pub struct WinitCreateWindowReader(pub ManualEventReader<CreateWindow>);
 
 //  Return the App if returning from the event loop
 pub fn winit_runner_with(mut app: App) {
@@ -661,7 +661,7 @@ pub fn winit_event_handler(
     }
 }
 
-fn handle_create_window_events(
+pub fn handle_create_window_events(
     world: &mut World,
     event_loop: &EventLoopWindowTarget<()>,
     create_window_event_reader: &mut ManualEventReader<CreateWindow>,
