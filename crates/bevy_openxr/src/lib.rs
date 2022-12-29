@@ -1,7 +1,11 @@
 pub mod camera;
 mod conversion;
 mod utils;
+#[cfg(feature = "winit_loop")]
+mod winit;
 
+#[cfg(feature = "winit_loop")]
+use bevy_winit::WinitSettings;
 use conversion::*;
 mod interaction;
 mod presentation;
@@ -452,6 +456,11 @@ fn setup_interaction(system: &mut XrSystem) {
 // todo: Implement the instance loop when the the lifecycle API is implemented.
 fn runner(mut app: App) {
     let ctx = app.world.remove_resource::<OpenXrContext>().unwrap();
+    #[cfg(feature = "winit_loop")]
+    {
+        app.world.init_resource::<WinitSettings>();
+        app.world.resource_mut::<WinitSettings>().return_from_run = true;
+    }
 
     app.world
         .insert_resource(XrInstanceRes(ctx.instance.clone()));
@@ -603,8 +612,20 @@ fn runner(mut app: App) {
     let right_id = Uuid::new_v4();
     XrPawn::spawn(app.world.spawn_empty(), left_id, right_id);
 
+    #[cfg(feature = "winit_loop")]
+    let mut winit_state = crate::winit::State::new();
+    #[cfg(feature = "winit_loop")]
+    {
+        crate::winit::init_window(&mut app);
+    }
+
     let mut frame_count = 0usize;
     'session_loop: loop {
+        #[cfg(feature = "winit_loop")]
+        {
+            winit_state = crate::winit::run_event_loop(winit_state, &mut app);
+        }
+
         frame_count += 1;
         while let Some(event) = ctx.instance.poll_event(&mut event_storage).unwrap() {
             match event {

@@ -45,7 +45,7 @@ impl PluginGroup for DefaultPlugins {
         {
             group = group.add(bevy_window::WindowPlugin {
                 window: WindowDescriptor::default(),
-                add_primary_window: false,
+                add_primary_window: cfg!(feature = "bevy_winit"),
                 exit_on_all_closed: false,
                 close_when_requested: false,
             });
@@ -66,7 +66,7 @@ impl PluginGroup for DefaultPlugins {
             group = group.add(bevy_scene::ScenePlugin::default());
         }
 
-        #[cfg(all(feature = "bevy_winit", not(feature = "bevy_xr")))]
+        #[cfg(feature = "bevy_winit")]
         {
             group = group.add(bevy_winit::WinitPlugin::default());
         }
