@@ -2,7 +2,7 @@
 build = "build.rs"
 edition = "2018"
 license = "MIT OR Apache-2.0"
-name = "hotham-simulator"
+name = "bevy_openxr_simulator"
 version = "0.1.0"
 
 [lib]
@@ -20,5 +20,5 @@ winit = "0.27.5"
 raw-window-handle = "0.5.0"
 
 [build-dependencies]
-bindgen = "*"
+bindgen = "0.63.0"
 shaderc = "0.7.2"

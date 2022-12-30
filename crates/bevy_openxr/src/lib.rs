@@ -184,7 +184,7 @@ unsafe extern "system" fn sim_get_instance_proc_addr(
     function: *mut Option<xr::sys::pfn::VoidFunction>,
 ) -> xr::sys::Result {
     //  The simulator doesn't currently use `instance` argument
-    xr::sys::Result::from_raw(hotham_simulator::get_instance_proc_addr(
+    xr::sys::Result::from_raw(bevy_openxr_simulator::get_instance_proc_addr(
         std::ptr::null_mut() as _,
         name,
         function as _,
@@ -300,7 +300,6 @@ pub struct OpenXrPlugin;
 
 impl Plugin for OpenXrPlugin {
     fn build(&self, app: &mut App) {
-        simulator::init();
         if !app.world.contains_resource::<OpenXrContext>() {
             let context =
                 OpenXrContext::new(OpenXrFormFactor::HeadMountedDisplay).unwrap_or_else(|_| {

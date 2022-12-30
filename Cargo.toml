@@ -21,6 +21,8 @@ members = [
   "tools/build-example-pages",
   "tools/build-wasm-example",
   "errors",
+
+  "crates/bevy_openxr/simulator",
 ]
 
 [features]
