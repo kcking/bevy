@@ -1,5 +1,6 @@
 pub mod camera;
 mod conversion;
+pub mod simulator;
 mod utils;
 #[cfg(feature = "winit_loop")]
 mod winit;
@@ -265,6 +266,7 @@ pub struct OpenXrPlugin;
 
 impl Plugin for OpenXrPlugin {
     fn build(&self, app: &mut App) {
+        simulator::init();
         if !app.world.contains_resource::<OpenXrContext>() {
             let context =
                 OpenXrContext::new(OpenXrFormFactor::HeadMountedDisplay).unwrap_or_else(|_| {
