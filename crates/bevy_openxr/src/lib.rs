@@ -41,7 +41,14 @@ use presentation::GraphicsContextHandles;
 use serde::{Deserialize, Serialize};
 use xr::{ActiveActionSet, ViewStateFlags};
 
-use std::{error::Error, ops::Deref, sync::Arc, thread, time::Duration};
+use std::{
+    error::Error,
+    ffi::{c_char, c_void},
+    ops::Deref,
+    sync::Arc,
+    thread,
+    time::Duration,
+};
 use wgpu::{TextureUsages, TextureViewDescriptor};
 use wgpu_hal::TextureUses;
 
@@ -169,12 +176,39 @@ pub struct OpenXrContext {
     graphics_context: Option<XrGraphicsContext>,
 }
 
+//  This function is a hack to convert from extern "C" to extern "system".
+#[cfg(feature = "simulator")]
+unsafe extern "system" fn sim_get_instance_proc_addr(
+    _instance: xr::sys::Instance,
+    name: *const c_char,
+    function: *mut Option<xr::sys::pfn::VoidFunction>,
+) -> xr::sys::Result {
+    //  The simulator doesn't currently use `instance` argument
+    xr::sys::Result::from_raw(hotham_simulator::get_instance_proc_addr(
+        std::ptr::null_mut() as _,
+        name,
+        function as _,
+    ))
+}
+
 impl OpenXrContext {
     fn new(form_factor: OpenXrFormFactor) -> Result<Self, OpenXrError> {
-        #[cfg(any(target_os = "android", target_os = "linux"))]
-        let entry = unsafe { xr::Entry::load().map_err(OpenXrError::Loader)? };
-        #[cfg(not(any(target_os = "android", target_os = "linux")))]
-        let entry = xr::Entry::linked();
+        let entry = {
+            #[cfg(feature = "simulator")]
+            {
+                unsafe { xr::Entry::from_get_instance_proc_addr(sim_get_instance_proc_addr) }
+                    .unwrap()
+            }
+            #[cfg(not(feature = "simulator"))]
+            {
+                #[cfg(any(target_os = "android", target_os = "linux"))]
+                unsafe {
+                    xr::Entry::load().map_err(OpenXrError::Loader)?
+                }
+                #[cfg(not(any(target_os = "android", target_os = "linux")))]
+                xr::Entry::linked()
+            }
+        };
 
         #[cfg(target_os = "android")]
         entry.initialize_android_loader().unwrap();

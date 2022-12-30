@@ -23,6 +23,7 @@ trace_tracy = ["bevy_render?/tracing-tracy", "bevy_log/tracing-tracy"]
 wgpu_trace = ["bevy_render/wgpu_trace"]
 debug_asset_server = ["bevy_asset/debug_asset_server"]
 winit_loop = ["bevy_openxr?/winit_loop", "bevy_winit"]
+openxr_simulator = ["bevy_openxr?/simulator"]
 
 # Image format support for texture loading (PNG and HDR are enabled by default)
 hdr = ["bevy_render/hdr"]

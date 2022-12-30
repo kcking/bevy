@@ -75,6 +75,7 @@ bevy_openxr = ["bevy_internal/bevy_xr", "bevy_internal/bevy_openxr"]
 
 # WIP winit loop support for openxr
 winit_loop = ["bevy_internal/winit_loop"]
+openxr_simulator = ["bevy_internal/openxr_simulator"]
 
 # Tracing features
 trace_chrome = ["trace", "bevy_internal/trace_chrome"]

@@ -15,6 +15,7 @@ keywords = ["bevy"]
 [features]
 wip = []
 winit_loop = ["bevy_winit", "winit"]
+simulator = ["hotham-simulator"]
 
 [dependencies]
 # bevy
@@ -33,6 +34,8 @@ bevy_hierarchy = { path = "../bevy_hierarchy", version = "0.9.0" }
 
 bevy_winit = { path = "../bevy_winit", version = "0.9.0", optional = true }
 winit = { version = "0.27.5", optional = true }
+
+hotham-simulator = { path = "../../../hotham/hotham-simulator", optional = true }
 
 # other
 serde = "1"
