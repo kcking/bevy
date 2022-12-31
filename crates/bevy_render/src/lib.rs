@@ -143,8 +143,12 @@ impl Plugin for RenderPlugin {
 
         app.init_resource::<ManualTextureViews>();
         if let Some(backends) = options.backends {
+            let instance = app
+                .world
+                .remove_resource::<renderer::RenderInstance>()
+                .unwrap_or_else(|| RenderInstance(wgpu::Instance::new(backends)));
+
             let windows = app.world.resource_mut::<bevy_window::Windows>();
-            let instance = wgpu::Instance::new(backends);
 
             let surface = windows
                 .get_primary()
@@ -239,7 +243,7 @@ impl Plugin for RenderPlugin {
                 )
                 .add_stage(RenderStage::Cleanup, SystemStage::parallel())
                 .init_resource::<RenderGraph>()
-                .insert_resource(RenderInstance(instance))
+                .insert_resource(instance)
                 .insert_resource(device)
                 .insert_resource(queue)
                 .insert_resource(adapter_info)

@@ -2,7 +2,7 @@ use ash::vk::{self, Handle, InstanceCreateFlags};
 use bevy_xr::presentation::XrGraphicsContext;
 use openxr as xr;
 use std::{error::Error, ffi::CStr, sync::Arc};
-use wgpu::Backends;
+use wgpu::{Backends, DeviceDescriptor, Features};
 use wgpu_hal as hal;
 use xr::sys::platform::VkInstanceCreateInfo;
 
@@ -91,7 +91,7 @@ pub fn create_graphics_context(
                 vk_entry.clone(),
                 vk_instance.clone(),
                 vk_version,
-                26,
+                29,
                 instance_extensions,
                 flags,
                 false, //TODO: is this correct?
@@ -175,32 +175,21 @@ pub fn create_graphics_context(
                 ash::Device::load(vk_instance.fp_v1_0(), vk::Device::from_raw(vk_device as _))
             }
         };
-        let hal_device = unsafe {
-            hal_exposed_adapter
-                .adapter
-                .device_from_raw(
-                    vk_device.clone(),
-                    true, //    TODO: is this right?
-                    &device_extensions,
-                    device_descriptor.features,
-                    uab_types,
-                    queue_family_index,
-                    queue_index,
-                )
-                .map_err(Box::new)?
-        };
 
         let wgpu_instance = unsafe { wgpu::Instance::from_hal::<hal::api::Vulkan>(hal_instance) };
         let wgpu_adapter = wgpu_instance
             .enumerate_adapters(Backends::VULKAN)
             .next()
             .unwrap();
-        // let wgpu_adapter = unsafe { wgpu_instance.create_adapter_from_hal(hal_exposed_adapter) };
-        let (wgpu_device, wgpu_queue) = unsafe {
-            wgpu_adapter
-                .create_device_from_hal(hal_device, &device_descriptor, None)
-                .map_err(Box::new)?
-        };
+        let (wgpu_device, wgpu_queue) =
+            futures_lite::future::block_on(wgpu_adapter.request_device(
+                &DeviceDescriptor {
+                    features: Features::MULTIVIEW,
+                    ..Default::default()
+                },
+                None,
+            ))
+            .unwrap();
 
         Ok((
             GraphicsContextHandles::Vulkan {
@@ -211,7 +200,7 @@ pub fn create_graphics_context(
                 queue_index,
             },
             XrGraphicsContext {
-                instance: wgpu_instance,
+                instance: Some(wgpu_instance),
                 device: Arc::new(wgpu_device),
                 queue: Arc::new(wgpu_queue),
                 adapter_info: wgpu_adapter.get_info(),

@@ -47,6 +47,7 @@ wgpu-hal = { version = "0.14.0", features = [
 ] }
 thiserror = "1.0"
 parking_lot = "0.11"
+futures-lite = "1.12.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 openxr = { version = "0.17.1", default-features = false, features = [

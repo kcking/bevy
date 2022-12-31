@@ -20,7 +20,7 @@ use ash::vk::Handle;
 use bevy_render::{
     camera::{CameraPlugin, CameraProjection, CameraProjectionPlugin, ManualTextureViews},
     prelude::Msaa,
-    renderer,
+    renderer::{self, RenderInstance},
     settings::WgpuSettings,
 };
 
@@ -352,21 +352,21 @@ impl Plugin for OpenXrPlugin {
         }
 
         let mut context = app.world.get_resource_mut::<OpenXrContext>().unwrap();
-        let graphics_context = context.graphics_context.take().unwrap();
+        let mut graphics_context = context.graphics_context.take().unwrap();
         println!("got graphics context");
 
+        let instance = RenderInstance(graphics_context.instance.take().unwrap());
         let dev = renderer::RenderDevice::from(graphics_context.device.clone());
         let queue = renderer::RenderQueue(graphics_context.queue.clone());
         let adapter_info = renderer::RenderAdapterInfo(graphics_context.adapter_info.clone());
         let adapter = renderer::RenderAdapter(graphics_context.adapter.clone());
 
-        //  override default render stuff on oculus
-        // #[cfg(target_os = "android")]
         {
             app.insert_resource(dev)
                 .insert_resource(queue)
                 .insert_resource(adapter_info)
-                .insert_resource(adapter);
+                .insert_resource(adapter)
+                .insert_resource(instance)
         };
 
         app.insert_resource::<XrGraphicsContext>(graphics_context)

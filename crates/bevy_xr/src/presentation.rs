@@ -25,7 +25,9 @@ pub enum XrVisibilityState {
 
 #[derive(Resource)]
 pub struct XrGraphicsContext {
-    pub instance: wgpu::Instance,
+    //  wgpu::Instance is not Clone so we use an Option and `take()` it to
+    //  insert as a bevy::RenderInstance
+    pub instance: Option<wgpu::Instance>,
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
     pub adapter_info: AdapterInfo,

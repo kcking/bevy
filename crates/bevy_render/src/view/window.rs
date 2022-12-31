@@ -195,19 +195,16 @@ pub fn prepare_windows(
                 // NOTE: On some OSes this MUST be called from the main thread.
                 let surface = render_instance
                     .create_surface(&window.raw_handle.as_ref().unwrap().get_handle());
-                let format = TextureFormat::bevy_default();
-                // XXX(kcking): wgpu adapter created by openxr fails, seemingly because
-                // it is not registered in the global list of wgpu adapters?
-                //
-                // let format = *surface
-                //     .get_supported_formats(&render_adapter)
-                //     .get(0)
-                //     .unwrap_or_else(|| {
-                //         panic!(
-                //             "No supported formats found for surface {:?} on adapter {:?}",
-                //             surface, render_adapter
-                //         )
-                //     });
+
+                let format = *surface
+                    .get_supported_formats(&render_adapter)
+                    .get(0)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "No supported formats found for surface {:?} on adapter {:?}",
+                            surface, render_adapter
+                        )
+                    });
                 SurfaceData { surface, format }
             });
 
