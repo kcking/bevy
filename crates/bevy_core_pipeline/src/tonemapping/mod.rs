@@ -75,7 +75,7 @@ impl SpecializedRenderPipeline for TonemappingPipeline {
             fragment: Some(FragmentState {
                 shader: TONEMAPPING_SHADER_HANDLE.typed(),
                 shader_defs,
-                entry_point: "fragment".into(),
+                entry_point: "fragment_fn".into(),
                 targets: vec![Some(ColorTargetState {
                     format: ViewTarget::TEXTURE_FORMAT_HDR,
                     blend: None,
