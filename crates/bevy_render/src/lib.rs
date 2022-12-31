@@ -164,9 +164,15 @@ impl Plugin for RenderPlugin {
                 app.world.get_resource::<renderer::RenderDevice>(),
                 app.world.get_resource::<renderer::RenderQueue>(),
                 app.world.get_resource::<renderer::RenderAdapterInfo>(),
-                // app.world.get_resource::<renderer::RenderAdapter>(),
+                app.world.get_resource::<renderer::RenderAdapter>(),
             ) {
-                (Some(dev), Some(queue), Some(adapter_info)) => {
+                (Some(dev), Some(queue), Some(adapter_info), Some(adapter)) => (
+                    dev.clone(),
+                    queue.clone(),
+                    adapter_info.clone(),
+                    Some(adapter.clone()),
+                ),
+                (Some(dev), Some(queue), Some(adapter_info), None) => {
                     (dev.clone(), queue.clone(), adapter_info.clone(), None)
                 }
                 _ => {

@@ -537,9 +537,6 @@ pub fn extract_cameras(
     >,
 ) {
     for (entity, camera, camera_render_graph, transform, visible_entities) in query.iter() {
-        if !camera.is_active {
-            continue;
-        }
         if let (Some((viewport_origin, _)), Some(viewport_size), Some(target_size)) = (
             camera.physical_viewport_rect(),
             camera.physical_viewport_size(),

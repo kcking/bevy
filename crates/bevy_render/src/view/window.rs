@@ -1,6 +1,7 @@
 use crate::{
     render_resource::TextureView,
     renderer::{RenderAdapter, RenderDevice, RenderInstance},
+    texture::BevyDefault,
     Extract, RenderApp, RenderStage,
 };
 use bevy_app::{App, Plugin};
@@ -194,15 +195,19 @@ pub fn prepare_windows(
                 // NOTE: On some OSes this MUST be called from the main thread.
                 let surface = render_instance
                     .create_surface(&window.raw_handle.as_ref().unwrap().get_handle());
-                let format = *surface
-                    .get_supported_formats(&render_adapter)
-                    .get(0)
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "No supported formats found for surface {:?} on adapter {:?}",
-                            surface, render_adapter
-                        )
-                    });
+                let format = TextureFormat::bevy_default();
+                // XXX(kcking): wgpu adapter created by openxr fails, seemingly because
+                // it is not registered in the global list of wgpu adapters?
+                //
+                // let format = *surface
+                //     .get_supported_formats(&render_adapter)
+                //     .get(0)
+                //     .unwrap_or_else(|| {
+                //         panic!(
+                //             "No supported formats found for surface {:?} on adapter {:?}",
+                //             surface, render_adapter
+                //         )
+                //     });
                 SurfaceData { surface, format }
             });
 

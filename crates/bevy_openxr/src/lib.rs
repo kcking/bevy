@@ -21,6 +21,7 @@ use bevy_render::{
     camera::{CameraPlugin, CameraProjection, CameraProjectionPlugin, ManualTextureViews},
     prelude::Msaa,
     renderer,
+    settings::WgpuSettings,
 };
 
 use bevy_utils::Uuid;
@@ -52,7 +53,7 @@ use std::{
     thread,
     time::Duration,
 };
-use wgpu::{TextureUsages, TextureViewDescriptor};
+use wgpu::{Backends, TextureUsages, TextureViewDescriptor};
 use wgpu_hal::TextureUses;
 
 pub use crate::camera::XrPawn;
@@ -303,6 +304,10 @@ pub struct OpenXrPlugin;
 
 impl Plugin for OpenXrPlugin {
     fn build(&self, app: &mut App) {
+        app.insert_resource(WgpuSettings {
+            backends: Some(Backends::VULKAN),
+            ..Default::default()
+        });
         #[cfg(feature = "simulator")]
         {
             let mut event_loop = app
@@ -353,11 +358,16 @@ impl Plugin for OpenXrPlugin {
         let dev = renderer::RenderDevice::from(graphics_context.device.clone());
         let queue = renderer::RenderQueue(graphics_context.queue.clone());
         let adapter_info = renderer::RenderAdapterInfo(graphics_context.adapter_info.clone());
+        let adapter = renderer::RenderAdapter(graphics_context.adapter.clone());
 
-        //override default render stuff
-        app.insert_resource(dev)
-            .insert_resource(queue)
-            .insert_resource(adapter_info);
+        //  override default render stuff on oculus
+        // #[cfg(target_os = "android")]
+        {
+            app.insert_resource(dev)
+                .insert_resource(queue)
+                .insert_resource(adapter_info)
+                .insert_resource(adapter);
+        };
 
         app.insert_resource::<XrGraphicsContext>(graphics_context)
             .set_runner(runner);

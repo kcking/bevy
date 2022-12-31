@@ -2,6 +2,7 @@ use ash::vk::{self, Handle, InstanceCreateFlags};
 use bevy_xr::presentation::XrGraphicsContext;
 use openxr as xr;
 use std::{error::Error, ffi::CStr, sync::Arc};
+use wgpu::Backends;
 use wgpu_hal as hal;
 use xr::sys::platform::VkInstanceCreateInfo;
 
@@ -190,7 +191,11 @@ pub fn create_graphics_context(
         };
 
         let wgpu_instance = unsafe { wgpu::Instance::from_hal::<hal::api::Vulkan>(hal_instance) };
-        let wgpu_adapter = unsafe { wgpu_instance.create_adapter_from_hal(hal_exposed_adapter) };
+        let wgpu_adapter = wgpu_instance
+            .enumerate_adapters(Backends::VULKAN)
+            .next()
+            .unwrap();
+        // let wgpu_adapter = unsafe { wgpu_instance.create_adapter_from_hal(hal_exposed_adapter) };
         let (wgpu_device, wgpu_queue) = unsafe {
             wgpu_adapter
                 .create_device_from_hal(hal_device, &device_descriptor, None)
@@ -210,6 +215,7 @@ pub fn create_graphics_context(
                 device: Arc::new(wgpu_device),
                 queue: Arc::new(wgpu_queue),
                 adapter_info: wgpu_adapter.get_info(),
+                adapter: wgpu_adapter.into(),
             },
         ))
     } else {

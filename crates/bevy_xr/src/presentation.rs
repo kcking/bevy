@@ -29,6 +29,7 @@ pub struct XrGraphicsContext {
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
     pub adapter_info: AdapterInfo,
+    pub adapter: Arc<wgpu::Adapter>,
 }
 
 // Trait implemented by XR backends that support display mode.

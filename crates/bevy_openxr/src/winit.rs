@@ -3,7 +3,7 @@
 /// simulator or PCVR headset is runnning.
 use bevy_app::{App, AppExit};
 use bevy_ecs::event::ManualEventReader;
-use bevy_window::{CreateWindow, RequestRedraw};
+use bevy_window::{CreateWindow, RequestRedraw, Windows};
 use bevy_winit::{WinitCreateWindowReader, WinitPersistentState};
 use winit::{
     event::Event,
