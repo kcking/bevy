@@ -26,6 +26,7 @@ use bevy_render::{
 use bevy_utils::Uuid;
 pub use interaction::*;
 
+#[cfg(feature = "winit_loop")]
 use ::winit::event_loop::EventLoop;
 use bevy_app::{App, AppExit, Plugin};
 use bevy_ecs::{
