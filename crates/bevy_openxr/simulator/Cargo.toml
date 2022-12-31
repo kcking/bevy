@@ -1,5 +1,4 @@
 [package]
-build = "build.rs"
 edition = "2018"
 license = "MIT OR Apache-2.0"
 name = "bevy_openxr_simulator"
@@ -12,13 +11,9 @@ crate-type = ["cdylib", "rlib"]
 ash = "0.37.0+1.3.209"
 ash-window = "0.12.0"
 cgmath = "0.18"
-env_logger = "0.9.0"
+env_logger = "0.10.0"
 lazy_static = "1.4.0"
 openxr-sys = "0.9"
 rand = "0.8"
 winit = "0.27.5"
 raw-window-handle = "0.5.0"
-
-[build-dependencies]
-bindgen = "0.63.0"
-shaderc = "0.7.2"
