@@ -198,9 +198,12 @@ pub struct XrViews(pub Vec<View>);
 pub fn update_xrcamera_view(
     mut cam: Query<(&mut XRProjection, &mut Transform, &Eye)>,
     mut xr_cam: Query<(&mut Transform, &XrCameras), Without<Eye>>,
-    views: ResMut<XrViews>,
+    views: Option<ResMut<XrViews>>,
 ) {
-    let views = &views.0;
+    let views = match &views {
+        Some(views) => &views.0,
+        None => return,
+    };
     let midpoint = (views.get(0).unwrap().pose.position.to_vec3()
         + views.get(1).unwrap().pose.position.to_vec3())
         / 2.;

@@ -27,7 +27,7 @@ impl State {
 }
 
 pub fn init_window(app: &mut App) {
-    let mut event_loop = app
+    let event_loop = app
         .world
         .remove_non_send_resource::<EventLoop<()>>()
         .unwrap();
@@ -41,6 +41,7 @@ pub fn init_window(app: &mut App) {
         &mut create_window_reader.0,
     );
     app.insert_non_send_resource(event_loop);
+    app.insert_resource(create_window_reader);
 }
 pub fn run_event_loop(state: State, app: &mut App) -> State {
     //  unpack and repack State so we can have mutable access to multiple fields
@@ -60,12 +61,10 @@ pub fn run_event_loop(state: State, app: &mut App) -> State {
         .remove_resource::<WinitCreateWindowReader>()
         .unwrap();
 
-    dbg!("start");
     event_loop.run_return(
         |event: Event<()>,
          event_loop: &EventLoopWindowTarget<()>,
          control_flow: &mut ControlFlow| {
-            dbg!(&control_flow);
             bevy_winit::winit_event_handler(
                 event,
                 event_loop,
@@ -76,10 +75,8 @@ pub fn run_event_loop(state: State, app: &mut App) -> State {
                 &mut app_exit_reader,
                 &mut redraw_reader,
             );
-            dbg!(&control_flow);
         },
     );
-    dbg!("ret");
 
     app.insert_non_send_resource(event_loop);
     app.insert_resource(create_window_reader);

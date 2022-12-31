@@ -5,6 +5,7 @@ mod utils;
 #[cfg(feature = "winit_loop")]
 mod winit;
 
+use bevy_log::error;
 #[cfg(feature = "winit_loop")]
 use bevy_winit::WinitSettings;
 use conversion::*;
@@ -25,6 +26,7 @@ use bevy_render::{
 use bevy_utils::Uuid;
 pub use interaction::*;
 
+use ::winit::event_loop::EventLoop;
 use bevy_app::{App, AppExit, Plugin};
 use bevy_ecs::{
     event::{Events, ManualEventReader},
@@ -300,6 +302,16 @@ pub struct OpenXrPlugin;
 
 impl Plugin for OpenXrPlugin {
     fn build(&self, app: &mut App) {
+        #[cfg(feature = "simulator")]
+        {
+            let mut event_loop = app
+                .world
+                .remove_non_send_resource::<EventLoop<()>>()
+                .unwrap();
+            bevy_openxr_simulator::simulator::pre_graphics_init(&mut event_loop);
+            app.insert_non_send_resource(event_loop);
+        }
+
         if !app.world.contains_resource::<OpenXrContext>() {
             let context =
                 OpenXrContext::new(OpenXrFormFactor::HeadMountedDisplay).unwrap_or_else(|_| {
@@ -495,6 +507,15 @@ fn runner(mut app: App) {
     {
         app.world.init_resource::<WinitSettings>();
         app.world.resource_mut::<WinitSettings>().return_from_run = true;
+    }
+    #[cfg(feature = "simulator")]
+    {
+        let mut event_loop = app
+            .world
+            .remove_non_send_resource::<EventLoop<()>>()
+            .unwrap();
+        bevy_openxr_simulator::simulator::pre_init(&mut event_loop);
+        app.insert_non_send_resource(event_loop);
     }
 
     app.world

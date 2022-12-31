@@ -7,7 +7,8 @@ use ash::{
 use openxr_sys::{Path, Posef, SessionState, Space, Vector3f};
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
+    ffi::CString,
     fmt::Debug,
     sync::{
         atomic::{AtomicBool, Ordering::Relaxed},
@@ -32,14 +33,21 @@ pub struct SwapchainState {
 pub struct State {
     pub vulkan_entry: Option<AshEntry>,
     pub vulkan_instance: Option<AshInstance>,
+    //  pre-populated by host becase it requires an event-loop / window
+    //  (len, c_string representation)
+    pub vulkan_extensions: Option<Vec<CString>>,
     pub physical_device: vk::PhysicalDevice,
     pub device: Option<Device>,
     pub session_state: SessionState,
+
     pub swapchain_fences: HashMap<u64, vk::Fence>,
     pub swapchains: HashMap<u64, SwapchainState>,
     pub internal_swapchain: SwapchainKHR,
     pub internal_swapchain_images: Vec<vk::Image>,
     pub internal_swapchain_image_views: Vec<vk::ImageView>,
+    // remembers which swapchains have been used since they will be pre-initialized before xrCreateSwapchain
+    pub used_swapchains: HashSet<u64>,
+
     pub frame_count: usize,
     pub image_index: u32,
     pub present_queue: vk::Queue,
@@ -77,12 +85,14 @@ impl Default for State {
         State {
             vulkan_entry: None,
             vulkan_instance: None,
+            vulkan_extensions: None,
             physical_device: vk::PhysicalDevice::null(),
             device: None,
             session_state: SessionState::UNKNOWN,
             swapchain_fences: Default::default(),
             swapchains: Default::default(),
             internal_swapchain: SwapchainKHR::null(),
+            used_swapchains: Default::default(),
             image_index: 4,
             present_queue: vk::Queue::null(),
             present_queue_family_index: 0,

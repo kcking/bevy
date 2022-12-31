@@ -143,7 +143,6 @@ pub unsafe extern "system" fn create_vulkan_instance(
     vulkan_instance: *mut VkInstance,
     vulkan_result: *mut VkResult,
 ) -> Result {
-    dbg!({ *create_info }.vulkan_create_info);
     let vulkan_create_info: &ash::vk::InstanceCreateInfo =
         { { *create_info }.vulkan_create_info as *const ash::vk::InstanceCreateInfo }
             .as_ref()
@@ -154,39 +153,20 @@ pub unsafe extern "system" fn create_vulkan_instance(
         transmute(get_instance_proc_adddr(ptr::null(), vk_create_instance));
     let mut instance = vk::Instance::null();
 
-    #[cfg(target_os = "macos")]
-    let window: Window = {
-        let el = main_thread_event_loop();
-        let mut el = el.borrow_mut();
-        let el = el.get_or_insert_with(|| EventLoop::new());
-
-        let window = WindowBuilder::new().with_visible(false).build(el).unwrap();
-        window
-    };
-    #[cfg(not(target_os = "macos"))]
-    let event_loop: EventLoop<()> = EventLoopBuilder::new().with_any_thread(true).build();
-    #[cfg(not(target_os = "macos"))]
-    let window = WindowBuilder::new()
-        .with_visible(false)
-        .build(&event_loop)
-        .unwrap();
-
     let mut create_info = *vulkan_create_info;
-    let mut enabled_extensions =
-        ash_window::enumerate_required_extensions(window.raw_display_handle())
-            .unwrap()
-            .to_vec();
+    let mut enabled_extensions = STATE.lock().unwrap().vulkan_extensions.clone().unwrap();
     let xr_extensions = slice::from_raw_parts(
         create_info.pp_enabled_extension_names,
         create_info.enabled_extension_count as usize,
     );
-    dbg!(&enabled_extensions);
-    dbg!(&create_info);
     for ext in &(*xr_extensions) {
-        enabled_extensions.push(*ext);
+        enabled_extensions.push(CString::new(CStr::from_ptr(*ext).to_bytes()).unwrap());
     }
 
-    let enabled_extensions = enabled_extensions.iter().map(|e| *e).collect::<Vec<_>>();
+    let enabled_extensions = enabled_extensions
+        .iter()
+        .map(|e| e.as_ptr())
+        .collect::<Vec<_>>();
     create_info.enabled_extension_count = enabled_extensions.len() as _;
     create_info.pp_enabled_extension_names = enabled_extensions.as_ptr();
 
@@ -233,11 +213,6 @@ pub unsafe extern "system" fn create_vulkan_device(
     .to_vec();
     extensions.push(khr::Swapchain::name().as_ptr());
 
-    dbg!(extensions
-        .clone()
-        .into_iter()
-        .map(|p| CStr::from_ptr(p))
-        .collect::<Vec<_>>());
     create_info.pp_enabled_extension_names = extensions.as_ptr();
     create_info.enabled_extension_count = extensions.len() as u32;
 
@@ -734,42 +709,16 @@ pub unsafe extern "system" fn create_xr_swapchain(
 ) -> Result {
     println!("[HOTHAM_SIMULATOR] Creating XR Swapchain..");
     let mut state = STATE.lock().unwrap();
-    let format = vk::Format::from_raw((*create_info).format as _);
+    //  XXX: ignore format for now
+    let _format = vk::Format::from_raw((*create_info).format as _);
     println!("[HOTHAM_SIMULATOR] ..done.");
 
     println!("[HOTHAM_SIMULATOR] Building windows swapchain..");
-    let windows_swapchain = build_swapchain(&mut state);
+    let swapchain_handle = build_swapchain(&mut state);
     println!("[HOTHAM_SIMULATOR] ..done");
-    let s = Swapchain::from_raw(windows_swapchain.as_raw());
-    let info = vk::FenceCreateInfo::default();
-    let fence = state
-        .device
-        .as_ref()
-        .unwrap()
-        .create_fence(&info, None)
-        .unwrap();
-    state.swapchain_fences.insert(s.into_raw(), fence);
 
-    let ext = khr::Swapchain::new(
-        state.vulkan_instance.as_ref().unwrap(),
-        state.device.as_ref().unwrap(),
-    );
-
-    let images = ext.get_swapchain_images(windows_swapchain).unwrap();
-    let image_views = create_multiview_image_views(&state, format, &images);
-    let swapchain_state = SwapchainState {
-        swapchain: SwapchainKHR::from_raw(windows_swapchain.as_raw()),
-        images,
-        image_views,
-        fence,
-    };
-
-    state
-        .swapchains
-        .insert(windows_swapchain.as_raw(), swapchain_state);
-
-    println!("[HOTHAM_SIMULATOR] Returning with {:?}", s);
-    *swapchain = s;
+    println!("[HOTHAM_SIMULATOR] Returning with {:?}", swapchain_handle);
+    *swapchain = Swapchain::from_raw(swapchain_handle.as_raw());
     Result::SUCCESS
 }
 
@@ -806,8 +755,8 @@ fn create_multiview_image_views(
         .collect::<Vec<_>>()
 }
 
-unsafe fn build_swapchain(mut state: &mut MutexGuard<State>) -> vk::SwapchainKHR {
-    let tx = if state.event_tx.is_none() {
+unsafe fn build_swapchain(state: &mut MutexGuard<State>) -> vk::SwapchainKHR {
+    let _tx = if state.event_tx.is_none() {
         let (tx, rx) = channel();
         state.event_rx = Some(rx);
         state.event_tx = Some(tx.clone());
@@ -815,34 +764,84 @@ unsafe fn build_swapchain(mut state: &mut MutexGuard<State>) -> vk::SwapchainKHR
     } else {
         state.event_tx.clone().unwrap()
     };
-    let (surface, swapchain) = openxr_sim_run_main_loop(Some(state)).unwrap();
 
-    let device = state.device.as_ref().unwrap();
+    let mut ret = None;
+    for (handle, swapchain) in &state.swapchains {
+        if !state.used_swapchains.contains(&handle) {
+            ret = Some((*handle, swapchain.swapchain));
+            break;
+        }
+    }
+    let ret = ret.map(|(handle, swapchain)| {
+        state.used_swapchains.insert(handle);
+        swapchain
+    });
 
-    println!("[HOTHAM_SIMULATOR] Received swapchain: {:?}", swapchain);
-    let instance = state.vulkan_instance.as_ref().unwrap().clone();
-    let swapchain_ext = khr::Swapchain::new(&instance, device);
+    match ret {
+        Some(swapchain) => return swapchain,
+        None => panic!("no more swapchains remaining"),
+    }
+}
 
-    state.surface = surface;
-    // state.window_thread_handle = Some(window_thread_handle);
-    state.internal_swapchain = swapchain;
-    state.internal_swapchain_images = swapchain_ext
-        .get_swapchain_images(swapchain)
-        .expect("Unable to get swapchain images");
-    state.internal_swapchain_image_views = create_swapchain_image_views(state);
+fn init_extensions(event_loop: &mut EventLoop<()>) -> Vec<CString> {
+    let window = WindowBuilder::new()
+        .with_visible(false)
+        .build(event_loop)
+        .unwrap();
+    let enabled_extensions = ash_window::enumerate_required_extensions(window.raw_display_handle())
+        .unwrap()
+        .to_vec();
+    let extensions = enabled_extensions
+        .iter()
+        .map(|p| unsafe { CString::new(CStr::from_ptr(*p).to_bytes()).unwrap() })
+        .collect();
 
-    println!("[HOTHAM_SIMULATOR] Creating descriptor sets..");
-    // state.descriptor_sets = create_descriptor_sets(state, swapchain);
-    // println!("[HOTHAM_SIMULATOR] Creating render pass..");
-    // state.render_pass = create_render_pass(state);
-    // println!("[HOTHAM_SIMULATOR] ..done!");
-    // state.framebuffers = create_framebuffers(state);
-    // state.pipeline_layout = create_pipeline_layout(state);
-    // println!("[HOTHAM_SIMULATOR] Creating pipelines..");
-    // state.pipelines = create_pipelines(state);
-    // println!("[HOTHAM_SIMULATOR] ..done!");
-    // state.command_buffers = create_command_buffers(state);
-    swapchain
+    extensions
+}
+
+pub fn pre_graphics_init(event_loop: &mut EventLoop<()>) {
+    let mut state = STATE.lock().unwrap();
+    state.vulkan_extensions = Some(init_extensions(event_loop));
+}
+pub fn pre_init(event_loop: &mut EventLoop<()>) {
+    let mut state = STATE.lock().unwrap();
+    for _ in 0..2 {
+        let (surface, swapchain) = openxr_sim_run_main_loop(event_loop, Some(&mut state)).unwrap();
+
+        let device = state.device.as_ref().unwrap();
+
+        println!("[HOTHAM_SIMULATOR] Received swapchain: {:?}", swapchain);
+        let instance = state.vulkan_instance.as_ref().unwrap().clone();
+        let swapchain_ext = khr::Swapchain::new(&instance, device);
+
+        state.surface = surface;
+        // state.window_thread_handle = Some(window_thread_handle);
+        state.internal_swapchain = swapchain;
+        state.internal_swapchain_images = unsafe { swapchain_ext.get_swapchain_images(swapchain) }
+            .expect("Unable to get swapchain images");
+        state.internal_swapchain_image_views = create_swapchain_image_views(&mut state);
+
+        let s = Swapchain::from_raw(swapchain.as_raw());
+        let info = vk::FenceCreateInfo::default();
+        let fence = unsafe { state.device.as_ref().unwrap().create_fence(&info, None) }.unwrap();
+        state.swapchain_fences.insert(s.into_raw(), fence);
+
+        let ext = khr::Swapchain::new(
+            state.vulkan_instance.as_ref().unwrap(),
+            state.device.as_ref().unwrap(),
+        );
+
+        let images = unsafe { ext.get_swapchain_images(swapchain) }.unwrap();
+        let image_views = create_multiview_image_views(&state, vk::Format::R8G8B8A8_SRGB, &images);
+        let swapchain_state = SwapchainState {
+            swapchain: SwapchainKHR::from_raw(swapchain.as_raw()),
+            images,
+            image_views,
+            fence,
+        };
+
+        state.swapchains.insert(swapchain.as_raw(), swapchain_state);
+    }
 }
 
 unsafe fn create_descriptor_sets(
@@ -1279,7 +1278,6 @@ pub unsafe extern "system" fn end_frame(
             Result::ERROR_VALIDATION_FAILURE
         }
     };
-    openxr_sim_run_main_loop(None);
     ret
 }
 
@@ -1414,34 +1412,7 @@ pub unsafe extern "system" fn get_vulkan_instance_extensions(
     buffer_count_output: *mut u32,
     buffer: *mut c_char,
 ) -> Result {
-    #[cfg(not(target_os = "macos"))]
-    let event_loop: EventLoop<()> = EventLoopBuilder::new().with_any_thread(true).build();
-    #[cfg(target_os = "macos")]
-    let window: Window = {
-        let el = main_thread_event_loop();
-        let mut el = el.borrow_mut();
-        let el = el.get_or_insert_with(|| EventLoop::new());
-
-        let window = WindowBuilder::new().with_visible(false).build(el).unwrap();
-        window
-    };
-    #[cfg(not(target_os = "macos"))]
-    let window = WindowBuilder::new()
-        // .with_drag_and_drop(false)
-        .with_visible(false)
-        .build(&event_loop)
-        .unwrap();
-    let enabled_extensions = ash_window::enumerate_required_extensions(window.raw_display_handle())
-        .unwrap()
-        .to_vec();
-    let extensions = enabled_extensions
-        .iter()
-        .map(|p| CStr::from_ptr(*p))
-        .map(|e| e.to_str().unwrap())
-        .collect::<Vec<&str>>()
-        .join(" ")
-        .into_bytes();
-
+    let extensions = STATE.lock().unwrap().vulkan_extensions.clone().unwrap();
     let length = extensions.len() + 1;
 
     if buffer_capacity_input == 0 {
@@ -1449,12 +1420,14 @@ pub unsafe extern "system" fn get_vulkan_instance_extensions(
         return Result::SUCCESS;
     }
 
-    let extensions = CString::from_vec_unchecked(extensions);
-
-    dbg!(&extensions);
-
     let buffer = slice::from_raw_parts_mut(buffer, length);
-    let bytes = extensions.as_bytes_with_nul();
+    let bytes = extensions
+        .iter()
+        .map(|e| e.to_str().unwrap())
+        .collect::<Vec<&str>>()
+        .join(" ")
+        .into_bytes();
+
     for i in 0..length {
         buffer[i] = bytes[i] as _;
     }
@@ -1830,14 +1803,9 @@ fn new_swapchain_and_window<T>(
     (surface, swapchain)
 }
 
-fn main_thread_event_loop() -> Arc<RefCell<Option<EventLoop<()>>>> {
-    thread_local! {
-    static EVENT_LOOP: Arc<RefCell<Option<EventLoop<()>>>> = Arc::new(RefCell::new(None));
-    }
-    EVENT_LOOP.with(|r| r.clone())
-}
-
 fn openxr_sim_run_main_loop(
+    event_loop: &mut EventLoop<()>,
+    //  When in_state.is_some(), create a new window, surface, and swapchain and return them.
     in_state: Option<&mut MutexGuard<State>>,
 ) -> Option<(SurfaceKHR, vk::SwapchainKHR)> {
     let mut ret = None;
@@ -1845,10 +1813,6 @@ fn openxr_sim_run_main_loop(
     static WIN_STATE: (RefCell<Option<EventLoop<()>>>, RefCell<Vec<Window>>, RefCell<Option<std::sync::mpsc::Sender<HothamInputEvent>>>) = (RefCell::new(None), RefCell::new(vec![]), RefCell::new(None));
     }
     WIN_STATE.with(|state| {
-        let mut event_loop = main_thread_event_loop();
-        let mut event_loop = event_loop.borrow_mut();
-        let event_loop = event_loop.get_or_insert_with(|| EventLoop::new());
-
         let mut windows = state.1.borrow_mut();
 
         match in_state {
