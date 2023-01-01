@@ -617,10 +617,17 @@ pub fn winit_event_handler(
             } else {
                 false
             };
-            if update {
-                winit_state.last_update = Instant::now();
-                app.update();
+
+            if winit_config.return_from_run {
+                *control_flow = ControlFlow::Exit;
             }
+            //  OPENXR: Leave app.update() to custom runner logic that calls this loop.
+            //  TODO(kcking): use a setting or feature to determine whether to
+            //  update or not.
+            // if update {
+            //     winit_state.last_update = Instant::now();
+            //     app.update();
+            // }
         }
         Event::RedrawEventsCleared => {
             {
