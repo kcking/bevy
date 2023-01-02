@@ -100,82 +100,6 @@ pub fn create_graphics_context(
             .map_err(Box::new)?
         };
 
-        let vk_physical_device = vk::PhysicalDevice::from_raw(
-            unsafe { instance.vulkan_graphics_device(system, vk_instance.handle().as_raw() as _) }
-                .map_err(Box::new)? as _,
-        );
-        let hal_exposed_adapter = hal_instance
-            .expose_adapter(vk_physical_device)
-            .ok_or_else(|| Box::new(AdapterError))?;
-
-        let queue_family_index = unsafe {
-            vk_instance
-                .get_physical_device_queue_family_properties(vk_physical_device)
-                .into_iter()
-                .enumerate()
-                .find_map(|(queue_family_index, info)| {
-                    if info.queue_flags.contains(vk::QueueFlags::GRAPHICS) {
-                        Some(queue_family_index as u32)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap()
-        };
-        let queue_index = 0;
-
-        let device_extensions = hal_exposed_adapter
-            .adapter
-            .required_device_extensions(device_descriptor.features);
-        let device_extensions_ptrs = device_extensions
-            .iter()
-            .map(|x| x.as_ptr())
-            .collect::<Vec<_>>();
-
-        //  TODO: how do we get limits from actual device?
-        let uab_types = hal::UpdateAfterBindTypes::from_limits(
-            &device_descriptor.limits,
-            &vk::PhysicalDeviceLimits::default(),
-        );
-
-        let mut physical_features = hal_exposed_adapter.adapter.physical_device_features(
-            &device_extensions,
-            device_descriptor.features,
-            uab_types,
-        );
-
-        let family_info = vk::DeviceQueueCreateInfo::builder()
-            .queue_family_index(queue_family_index)
-            .queue_priorities(&[1.0])
-            .build();
-        let family_infos = [family_info];
-
-        let mut multiview = vk::PhysicalDeviceMultiviewFeatures {
-            multiview: vk::TRUE,
-            ..Default::default()
-        };
-        let vk_device = {
-            let info = vk::DeviceCreateInfo::builder()
-                .queue_create_infos(&family_infos)
-                .enabled_extension_names(&device_extensions_ptrs)
-                .push_next(&mut multiview);
-            let info = physical_features.add_to_device_create_builder(info).build();
-
-            unsafe {
-                let vk_device = instance
-                    .create_vulkan_device(
-                        system,
-                        std::mem::transmute(vk_entry.static_fn().get_instance_proc_addr),
-                        vk_physical_device.as_raw() as _,
-                        &info as *const _ as *const _,
-                    )
-                    .map_err(Box::new)?
-                    .map_err(|e| Box::new(vk::Result::from_raw(e)))?;
-
-                ash::Device::load(vk_instance.fp_v1_0(), vk::Device::from_raw(vk_device as _))
-            }
-        };
-
         let wgpu_instance = unsafe { wgpu::Instance::from_hal::<hal::api::Vulkan>(hal_instance) };
         let wgpu_adapter = wgpu_instance
             .enumerate_adapters(Backends::VULKAN)
@@ -184,17 +108,30 @@ pub fn create_graphics_context(
         let (wgpu_device, wgpu_queue) =
             futures_lite::future::block_on(wgpu_adapter.request_device(
                 &DeviceDescriptor {
-                    features: Features::MULTIVIEW,
+                    //  MUTLIVIEW doesn't work here on quest 2
+                    features: Features::empty(),
                     ..Default::default()
                 },
                 None,
             ))
             .unwrap();
 
+        let (vk_physical, vk_device, queue_family_index, queue_index) = unsafe {
+            wgpu_device.as_hal::<wgpu_hal::api::Vulkan, _, _>(|dev| {
+                let dev = dev.unwrap();
+                (
+                    dev.raw_physical_device(),
+                    dev.raw_device().clone(),
+                    dev.queue_family_index(),
+                    dev.queue_index(),
+                )
+            })
+        };
+
         Ok((
             GraphicsContextHandles::Vulkan {
                 instance: vk_instance,
-                physical_device: vk_physical_device,
+                physical_device: vk_physical,
                 device: vk_device,
                 queue_family_index,
                 queue_index,
