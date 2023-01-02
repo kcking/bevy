@@ -4,7 +4,7 @@
 use bevy_app::{App, AppExit};
 use bevy_ecs::event::ManualEventReader;
 use bevy_window::{CreateWindow, RequestRedraw, Windows};
-use bevy_winit::{WinitCreateWindowReader, WinitPersistentState};
+use bevy_winit::{WinitCreateWindowReader, WinitPersistentState, WinitWindows};
 use winit::{
     event::Event,
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -65,6 +65,21 @@ pub fn run_event_loop(state: State, app: &mut App) -> State {
         |event: Event<()>,
          event_loop: &EventLoopWindowTarget<()>,
          control_flow: &mut ControlFlow| {
+            #[cfg(feature = "simulator")]
+            {
+                if let Event::WindowEvent { window_id, .. } = &event {
+                    if app
+                        .world
+                        .non_send_resource::<WinitWindows>()
+                        .get_window_id(*window_id)
+                        .is_none()
+                    {
+                        //  bevy doesn't know about this window, assume the simulator owns it.
+                        bevy_openxr_simulator::simulator::handle_window_event(event, control_flow);
+                        return;
+                    }
+                }
+            }
             bevy_winit::winit_event_handler(
                 event,
                 event_loop,

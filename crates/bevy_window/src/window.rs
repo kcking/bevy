@@ -6,7 +6,7 @@ use bevy_utils::{tracing::warn, Uuid};
 #[reflect_value(PartialEq, Hash)]
 /// A unique ID for a [`Window`].
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-pub struct WindowId(Uuid);
+pub struct WindowId(pub Uuid);
 
 /// Presentation mode for a window.
 ///

@@ -1802,6 +1802,9 @@ fn new_swapchain_and_window<T>(
 
     (surface, swapchain)
 }
+thread_local! {
+static WIN_STATE: (RefCell<Vec<Window>>, RefCell<Option<std::sync::mpsc::Sender<HothamInputEvent>>>) = (RefCell::new(vec![]), RefCell::new(None));
+}
 
 fn openxr_sim_run_main_loop(
     event_loop: &mut EventLoop<()>,
@@ -1809,11 +1812,8 @@ fn openxr_sim_run_main_loop(
     in_state: Option<&mut MutexGuard<State>>,
 ) -> Option<(SurfaceKHR, vk::SwapchainKHR)> {
     let mut ret = None;
-    thread_local! {
-    static WIN_STATE: (RefCell<Option<EventLoop<()>>>, RefCell<Vec<Window>>, RefCell<Option<std::sync::mpsc::Sender<HothamInputEvent>>>) = (RefCell::new(None), RefCell::new(vec![]), RefCell::new(None));
-    }
     WIN_STATE.with(|state| {
-        let mut windows = state.1.borrow_mut();
+        let mut windows = state.0.borrow_mut();
 
         match in_state {
             Some(in_state) => {
@@ -1824,7 +1824,7 @@ fn openxr_sim_run_main_loop(
                 ret = Some((surface, swapchain));
                 {
                     if let Some(tx) = in_state.event_tx.clone() {
-                        state.2.borrow_mut().get_or_insert(tx);
+                        state.1.borrow_mut().get_or_insert(tx);
                     }
                 }
             }
@@ -1843,7 +1843,7 @@ fn openxr_sim_run_main_loop(
                     event: WindowEvent::KeyboardInput { input: k, .. },
                     ..
                 } => {
-                    if let Some(tx) = state.2.borrow().as_ref() {
+                    if let Some(tx) = state.1.borrow().as_ref() {
                         let _ = tx.send(HothamInputEvent::KeyboardInput {
                             key: k.virtual_keycode,
                         });
@@ -1858,7 +1858,7 @@ fn openxr_sim_run_main_loop(
                 }
                 Event::RedrawRequested(_window_id) => {}
                 Event::DeviceEvent { event, .. } => {
-                    if let Some(tx) = state.2.borrow().as_ref() {
+                    if let Some(tx) = state.1.borrow().as_ref() {
                         match event {
                             DeviceEvent::Key(k) => {
                                 let _ = tx.send(HothamInputEvent::KeyboardInput {
@@ -1877,4 +1877,44 @@ fn openxr_sim_run_main_loop(
         });
     });
     ret
+}
+
+pub fn handle_window_event(event: Event<()>, control_flow: &mut ControlFlow) {
+    WIN_STATE.with(|state| match event {
+        Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } => std::process::exit(0),
+        Event::WindowEvent {
+            event: WindowEvent::KeyboardInput { input: k, .. },
+            ..
+        } => {
+            if let Some(tx) = state.1.borrow().as_ref() {
+                let _ = tx.send(HothamInputEvent::KeyboardInput {
+                    key: k.virtual_keycode,
+                });
+            }
+        }
+        Event::LoopDestroyed => {}
+        Event::MainEventsCleared => {
+            *control_flow = ControlFlow::ExitWithCode(0);
+        }
+        Event::RedrawRequested(_window_id) => {}
+        Event::DeviceEvent { event, .. } => {
+            if let Some(tx) = state.1.borrow().as_ref() {
+                match event {
+                    DeviceEvent::Key(k) => {
+                        let _ = tx.send(HothamInputEvent::KeyboardInput {
+                            key: k.virtual_keycode,
+                        });
+                    }
+                    DeviceEvent::MouseMotion { delta: (y, x) } => {
+                        let _ = tx.send(HothamInputEvent::MouseInput { x, y });
+                    }
+                    _ => {}
+                };
+            }
+        }
+        _ => (),
+    });
 }
