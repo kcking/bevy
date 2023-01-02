@@ -1,6 +1,5 @@
 pub mod camera;
 mod conversion;
-pub mod simulator;
 mod utils;
 #[cfg(feature = "winit_loop")]
 mod winit;
