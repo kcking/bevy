@@ -1724,10 +1724,15 @@ pub fn find_memory_type(
     panic!("Unable to find suitable memory type")
 }
 
-fn new_window<T>(event_loop: &EventLoop<T>) -> Window {
+#[derive(Debug)]
+enum Eye {
+    Left,
+    Right,
+}
+fn new_window<T>(event_loop: &EventLoop<T>, eye: Eye) -> Window {
     WindowBuilder::new()
         .with_inner_size(PhysicalSize::new(VIEWPORT_WIDTH, VIEWPORT_HEIGHT))
-        .with_title("Hotham Simulator")
+        .with_title(format!("{:?} Eye", eye))
         .with_visible(true)
         // .with_drag_and_drop(false)
         .build(&event_loop)
@@ -1817,7 +1822,14 @@ fn openxr_sim_run_main_loop(
 
         match in_state {
             Some(in_state) => {
-                let new_window = new_window(event_loop);
+                let new_window = new_window(
+                    event_loop,
+                    if windows.is_empty() {
+                        Eye::Left
+                    } else {
+                        Eye::Right
+                    },
+                );
                 windows.push(new_window);
                 let (surface, swapchain) =
                     new_swapchain_and_window(in_state, event_loop, &windows.last().unwrap());
