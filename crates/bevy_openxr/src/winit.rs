@@ -79,6 +79,18 @@ pub fn run_event_loop(state: State, app: &mut App) -> State {
                         return;
                     }
                 }
+                if let Event::DeviceEvent { .. } = &event {
+                    if !app
+                        .world
+                        .resource::<Windows>()
+                        .iter()
+                        .any(|w| w.is_focused())
+                    {
+                        //  Send DeviceEvents to sim when no bevy window is focused.
+                        bevy_openxr_simulator::simulator::handle_window_event(event, control_flow);
+                        return;
+                    }
+                }
             }
             bevy_winit::winit_event_handler(
                 event,

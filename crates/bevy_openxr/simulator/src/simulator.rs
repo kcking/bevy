@@ -756,15 +756,6 @@ fn create_multiview_image_views(
 }
 
 unsafe fn build_swapchain(state: &mut MutexGuard<State>) -> vk::SwapchainKHR {
-    let _tx = if state.event_tx.is_none() {
-        let (tx, rx) = channel();
-        state.event_rx = Some(rx);
-        state.event_tx = Some(tx.clone());
-        tx
-    } else {
-        state.event_tx.clone().unwrap()
-    };
-
     let mut ret = None;
     for (handle, swapchain) in &state.swapchains {
         if !state.used_swapchains.contains(&handle) {
@@ -805,6 +796,15 @@ pub fn pre_graphics_init(event_loop: &mut EventLoop<()>) {
 }
 pub fn pre_init(event_loop: &mut EventLoop<()>) {
     let mut state = STATE.lock().unwrap();
+    if state.event_tx.is_none() {
+        let (tx, rx) = channel();
+        state.event_rx = Some(rx);
+        state.event_tx = Some(tx.clone());
+        tx
+    } else {
+        state.event_tx.clone().unwrap()
+    };
+
     for _ in 0..2 {
         let (surface, swapchain) = openxr_sim_run_main_loop(event_loop, Some(&mut state)).unwrap();
 
