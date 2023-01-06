@@ -4,7 +4,8 @@ use ash::{
     Device, Entry as AshEntry, Instance as AshInstance,
 };
 
-use openxr_sys::{Path, Posef, SessionState, Space, Vector3f};
+use cgmath::{InnerSpace, Quaternion, Rad, Rotation, Rotation3, Transform3, Vector3};
+use openxr_sys::{Path, Posef, Quaternionf, SessionState, Space, Vector3f};
 
 use std::{
     collections::{HashMap, HashSet},
@@ -75,7 +76,10 @@ pub struct State {
     pub spaces: HashMap<u64, SpaceState>,
     pub left_hand_space: u64,
     pub right_hand_space: u64,
+
     pub view_poses: Vec<Posef>,
+    pub rot_xy: [f32; 2],
+
     pub event_rx: Option<Receiver<HothamInputEvent>>,
     pub event_tx: Option<Sender<HothamInputEvent>>,
 }
@@ -135,6 +139,7 @@ impl Default for State {
                     pose
                 })
                 .collect(),
+            rot_xy: Default::default(),
         }
     }
 }
@@ -216,6 +221,7 @@ impl State {
     pub fn update_actions(&mut self) -> Option<()> {
         let mut z_delta = 0.00;
         let mut x_delta = 0.00;
+        let mut y_delta = 0.00;
         let mut x_rot = 0.0;
         let mut y_rot = 0.0;
 
@@ -234,6 +240,12 @@ impl State {
                     winit::event::VirtualKeyCode::D => {
                         x_delta = 0.05;
                     }
+                    winit::event::VirtualKeyCode::Space => {
+                        y_delta += 0.05;
+                    }
+                    winit::event::VirtualKeyCode::C => {
+                        y_delta -= 0.05;
+                    }
                     _ => {}
                 },
                 HothamInputEvent::MouseInput { x, y } => {
@@ -243,22 +255,27 @@ impl State {
             }
         }
 
+        self.rot_xy[0] += x_rot;
+        self.rot_xy[1] += y_rot;
+
         for pose in &mut self.view_poses {
             let orientation = &mut pose.orientation;
-            orientation.x = (orientation.x + x_rot).clamp(-1.0, 1.0);
-            orientation.y = (orientation.y + y_rot).clamp(-1.0, 1.0);
+
+            let rot = Quaternion::from_angle_y(Rad(self.rot_xy[1]))
+                * Quaternion::from_angle_x(cgmath::Rad(self.rot_xy[0]));
+            orientation.w = rot.s;
+            orientation.x = rot.v.x;
+            orientation.y = rot.v.y;
+            orientation.z = rot.v.z;
+
+            let movement = Vector3::new(x_delta, 0., z_delta);
+            let rotated_movement = rot * movement;
 
             let position = &mut pose.position;
-            position.z += z_delta;
-            position.x += x_delta;
+            position.z += rotated_movement.z;
+            position.x += rotated_movement.x;
+            position.y += y_delta;
         }
-
-        // let left_hand = self.left_hand_space;
-        // let right_hand = self.right_hand_space;
-        // self.spaces.get_mut(&left_hand).unwrap().position.z += z_delta;
-        // self.spaces.get_mut(&left_hand).unwrap().position.x += x_delta;
-        // self.spaces.get_mut(&right_hand).unwrap().position.z += z_delta;
-        // self.spaces.get_mut(&right_hand).unwrap().position.x += x_delta;
 
         Some(())
     }
