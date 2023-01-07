@@ -36,7 +36,7 @@ use openxr_sys::{
 use rand::random;
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use std::cell::{Ref, RefCell};
-use std::ffi::c_void;
+use std::ffi::{c_char, c_void};
 use std::sync::Arc;
 use std::{
     ffi::{CStr, CString},
@@ -44,7 +44,6 @@ use std::{
     intrinsics::{copy_nonoverlapping, transmute},
     io::Cursor,
     mem::size_of,
-    os::raw::c_char,
     ptr::{self, null_mut},
     slice,
     sync::{atomic::Ordering::Relaxed, mpsc::channel, Mutex, MutexGuard},
@@ -64,9 +63,6 @@ use winit::{
 
 #[cfg(target_os = "windows")]
 use winit::platform::windows::{EventLoopBuilderExtWindows, WindowBuilderExtWindows};
-
-#[cfg(target_os = "linux")]
-use winit::platform::unix::EventLoopExtUnix;
 
 static SWAPCHAIN_COLOUR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
 pub const NUM_VIEWS: usize = 2; // TODO: Make dynamic
@@ -1458,12 +1454,12 @@ pub unsafe extern "system" fn get_vulkan_device_extensions(
     Result::SUCCESS
 }
 
-fn str_to_fixed_bytes(string: &str) -> [i8; 128] {
-    let mut name = [0i8; 128];
+fn str_to_fixed_bytes(string: &str) -> [c_char; 128] {
+    let mut name = [0 as c_char; 128];
     string
         .bytes()
         .zip(name.iter_mut())
-        .for_each(|(b, ptr)| *ptr = b as i8);
+        .for_each(|(b, ptr)| *ptr = b as c_char);
     name
 }
 

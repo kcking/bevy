@@ -20,7 +20,7 @@ type DummyFn = unsafe extern "system" fn() -> Result;
 #[no_mangle]
 pub unsafe extern "C" fn get_instance_proc_addr(
     _instance: *mut XrInstance_T,
-    name: *const i8,
+    name: *const std::ffi::c_char,
     function: *mut PFN_xrVoidFunction,
 ) -> XrResult {
     use std::{ffi::CStr, intrinsics::transmute};
