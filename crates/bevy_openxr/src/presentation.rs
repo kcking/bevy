@@ -25,7 +25,12 @@ pub fn create_graphics_context(
     instance: &xr::Instance,
     system: xr::SystemId,
 ) -> Result<(GraphicsContextHandles, XrGraphicsContext), Box<dyn Error>> {
-    let device_descriptor = wgpu::DeviceDescriptor::default();
+    let device_descriptor = wgpu::DeviceDescriptor {
+        //  POLYGON_MODE_LINE used for editor features,
+        features: wgpu::Features::POLYGON_MODE_LINE,
+        label: Some("OpenXR Vulkan Device"),
+        ..Default::default()
+    };
 
     if instance.exts().khr_vulkan_enable2.is_some() {
         let vk_entry = unsafe { ash::Entry::load().unwrap() };
