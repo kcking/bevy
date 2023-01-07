@@ -3,10 +3,6 @@ use xr::{EnvironmentBlendMode, FrameWaiter, ViewConfigurationType};
 use crate::*;
 
 pub fn setup_xrcontext_and_graphics(app: &mut App) {
-    app.insert_resource(WgpuSettings {
-        backends: Some(Backends::VULKAN),
-        ..Default::default()
-    });
     #[cfg(feature = "simulator")]
     {
         let mut event_loop = app
