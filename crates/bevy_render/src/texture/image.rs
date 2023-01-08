@@ -535,6 +535,7 @@ impl TextureFormatPixelInfo for TextureFormat {
             | TextureFormat::Depth32Float => 4,
 
             // special cases
+            TextureFormat::Rgb9e5Ufloat => 4,
             TextureFormat::Rgb10a2Unorm => 4,
             TextureFormat::Rg11b10Float => 4,
             TextureFormat::Depth24Plus => 3, // FIXME is this correct?
@@ -583,7 +584,8 @@ impl TextureFormatPixelInfo for TextureFormat {
             | TextureFormat::Rgba32Float => 4,
 
             // special cases
-            TextureFormat::Rgb10a2Unorm
+            TextureFormat::Rgb9e5Ufloat
+            | TextureFormat::Rgb10a2Unorm
             | TextureFormat::Rg11b10Float
             | TextureFormat::Depth32Float
             | TextureFormat::Depth24Plus
