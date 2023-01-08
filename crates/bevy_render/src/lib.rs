@@ -41,9 +41,10 @@ pub use once_cell;
 
 use crate::{
     camera::CameraPlugin,
-    camera::{CameraPlugin, ManualTextureViews},
+    camera::ManualTextureViews,
     mesh::MeshPlugin,
     prelude::ComputedVisibility,
+    render_graph::RenderGraph,
     render_resource::{PipelineCache, Shader, ShaderLoader},
     renderer::{render_system, RenderInstance},
     view::{ViewPlugin, WindowRenderPlugin},

@@ -21,7 +21,9 @@ impl Plugin for CameraPlugin {
             .register_type::<WindowOrigin>()
             .register_type::<ScalingMode>()
             .register_type::<CameraRenderGraph>()
-            .register_type::<RenderTarget>()
+            //  RenderTarget cannot derive Reflect because we added a Uuid to
+            //  the new variant.
+            // .register_type::<RenderTarget>()
             .add_plugin(CameraProjectionPlugin::<Projection>::default())
             .add_plugin(CameraProjectionPlugin::<OrthographicProjection>::default())
             .add_plugin(CameraProjectionPlugin::<PerspectiveProjection>::default());
