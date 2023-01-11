@@ -46,8 +46,8 @@ impl PluginGroup for DefaultPlugins {
             group = group.add(bevy_window::WindowPlugin {
                 window: WindowDescriptor::default(),
                 add_primary_window: cfg!(feature = "bevy_winit"),
-                exit_on_all_closed: false,
-                close_when_requested: false,
+                exit_on_all_closed: cfg!(feature = "bevy_winit"),
+                close_when_requested: cfg!(feature = "bevy_winit"),
             });
         }
 

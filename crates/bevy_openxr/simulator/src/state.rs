@@ -162,21 +162,21 @@ impl Debug for State {
 impl State {
     pub unsafe fn destroy(&mut self) {
         println!("[HOTHAM_SIMULATOR] Destroy called..");
-        if let Some(device) = self.device.take() {
-            let instance = self.vulkan_instance.take().unwrap();
-            let entry = self.vulkan_entry.take().unwrap();
-            device.device_wait_idle().unwrap();
-            self.close_window.store(true, Relaxed);
-            if let Some(handle) = self.window_thread_handle.take() {
-                handle.join().unwrap();
-            }
+        // if let Some(device) = self.device.take() {
+        //     let instance = self.vulkan_instance.take().unwrap();
+        //     let entry = self.vulkan_entry.take().unwrap();
+        //     device.device_wait_idle().unwrap();
+        //     self.close_window.store(true, Relaxed);
+        //     if let Some(handle) = self.window_thread_handle.take() {
+        //         handle.join().unwrap();
+        //     }
 
-            let swapchain_ext = khr::Swapchain::new(&instance, &device);
-            swapchain_ext.destroy_swapchain(self.internal_swapchain, None);
+        //     let swapchain_ext = khr::Swapchain::new(&instance, &device);
+        //     swapchain_ext.destroy_swapchain(self.internal_swapchain, None);
 
-            let surface_ext = khr::Surface::new(&entry, &instance);
-            surface_ext.destroy_surface(self.surface, None);
-        }
+        //     let surface_ext = khr::Surface::new(&entry, &instance);
+        //     surface_ext.destroy_surface(self.surface, None);
+        // }
         // device.queue_wait_idle(self.present_queue).unwrap();
         // for image in self.multiview_images.drain(..) {
         //     device.destroy_image(image, None)
