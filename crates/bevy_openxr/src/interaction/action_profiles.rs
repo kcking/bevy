@@ -29,6 +29,17 @@ pub fn setup_interaction(system: &mut XrSystem) {
                 ),
                 (
                     XrActionDescriptor {
+                        name: "left_secondary".into(),
+                        action_type: XrActionType::Button {
+                            touch: true,
+                            click: true,
+                            value: false,
+                        },
+                    },
+                    "/user/hand/left/input/y".into(),
+                ),
+                (
+                    XrActionDescriptor {
                         name: "right_trigger".into(),
                         action_type: XrActionType::Button {
                             touch: true,
@@ -48,6 +59,39 @@ pub fn setup_interaction(system: &mut XrSystem) {
                         },
                     },
                     "/user/hand/right/input/a".into(),
+                ),
+                (
+                    XrActionDescriptor {
+                        name: "right_secondary".into(),
+                        action_type: XrActionType::Button {
+                            touch: true,
+                            click: true,
+                            value: false,
+                        },
+                    },
+                    "/user/hand/right/input/b".into(),
+                ),
+                (
+                    XrActionDescriptor {
+                        name: "left_menu".into(),
+                        action_type: XrActionType::Button {
+                            touch: false,
+                            click: true,
+                            value: false,
+                        },
+                    },
+                    "/user/hand/left/input/menu".into(),
+                ),
+                (
+                    XrActionDescriptor {
+                        name: "right_menu".into(),
+                        action_type: XrActionType::Button {
+                            touch: false,
+                            click: true,
+                            value: false,
+                        },
+                    },
+                    "/user/hand/right/input/system".into(), //   might be unavailable for app use
                 ),
             ],
             tracked: true,
