@@ -132,7 +132,7 @@ pub fn setup_other_xr(app: &mut App) -> XrRunnerState {
     println!("inserted XrSystem");
 
     let mut xr_system = app.world.get_resource_mut::<XrSystem>().unwrap();
-    setup_interaction(&mut xr_system);
+    action_profiles::setup_interaction(&mut xr_system);
 
     let mode = xr_system.selected_session_mode();
     let bindings = xr_system.action_set();

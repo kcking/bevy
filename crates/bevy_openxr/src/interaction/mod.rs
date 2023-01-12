@@ -1,3 +1,4 @@
+pub mod action_profiles;
 mod tracking;
 
 use bevy_ecs::event::{Events, ManualEventReader};
