@@ -1,6 +1,8 @@
 use ash::vk;
 use bevy_math::{Quat, Vec3};
+use bevy_transform::prelude::Transform;
 use bevy_utils::Duration;
+use bevy_xr::XrPose;
 use openxr as xr;
 
 pub fn from_duration(duration: Duration) -> xr::Duration {
@@ -77,5 +79,15 @@ impl<T: ToUVec2> Size2D for T {
                 height: uv2.y as _,
             },
         }
+    }
+}
+
+trait ToTransform {
+    fn to_transform(&self) -> Transform;
+}
+
+impl ToTransform for XrPose {
+    fn to_transform(&self) -> Transform {
+        Transform::from_translation(self.position).with_rotation(self.orientation)
     }
 }
